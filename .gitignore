@@ -1,0 +1,3 @@
+# Build artifacts tracked separately
+*.tmp
+apk-build/

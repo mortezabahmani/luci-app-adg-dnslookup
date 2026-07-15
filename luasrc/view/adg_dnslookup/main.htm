@@ -1,0 +1,917 @@
+<%#
+  AdGuard Home DNS Lookup — LuCI Frontend
+  Custom HTM template with full AJAX UI, dark/light mode, live logs, animated sync
+-%>
+<%+header%>
+
+<style>
+/* ═══════════════════════════════════════════════════════════════
+   ADG DNS LOOKUP — CUSTOM THEME
+   Supports light (default LuCI) and dark (custom toggle) modes
+   ═══════════════════════════════════════════════════════════════ */
+
+:root {
+  --adg-bg:          #f5f7fa;
+  --adg-surface:     #ffffff;
+  --adg-surface2:    #f0f2f5;
+  --adg-border:      #e2e6ea;
+  --adg-primary:     #4f7ef7;
+  --adg-primary-h:   #3b6de4;
+  --adg-success:     #22c55e;
+  --adg-warning:     #f59e0b;
+  --adg-error:       #ef4444;
+  --adg-muted:       #94a3b8;
+  --adg-text:        #1e293b;
+  --adg-text2:       #475569;
+  --adg-shadow:      0 2px 12px rgba(0,0,0,.08);
+  --adg-shadow-lg:   0 8px 32px rgba(0,0,0,.12);
+  --adg-radius:      12px;
+  --adg-radius-sm:   8px;
+  --adg-transition:  all 0.22s cubic-bezier(.4,0,.2,1);
+}
+
+body.adg-dark {
+  --adg-bg:        #0f172a;
+  --adg-surface:   #1e293b;
+  --adg-surface2:  #273044;
+  --adg-border:    #334155;
+  --adg-text:      #e2e8f0;
+  --adg-text2:     #94a3b8;
+  --adg-shadow:    0 2px 12px rgba(0,0,0,.35);
+  --adg-shadow-lg: 0 8px 32px rgba(0,0,0,.5);
+}
+
+/* — Wrapper ─────────────────────────────────────────────────── */
+#adg-app {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  background: var(--adg-bg);
+  color: var(--adg-text);
+  min-height: 100vh;
+  transition: var(--adg-transition);
+}
+
+/* — Header ──────────────────────────────────────────────────── */
+.adg-header {
+  background: var(--adg-surface);
+  border-bottom: 1px solid var(--adg-border);
+  box-shadow: var(--adg-shadow);
+  padding: 14px 24px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  position: sticky; top: 0; z-index: 100;
+}
+.adg-logo {
+  width: 38px; height: 38px;
+  background: linear-gradient(135deg, #4f7ef7, #38bdf8);
+  border-radius: 10px;
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0;
+  box-shadow: 0 4px 12px rgba(79,126,247,.35);
+}
+.adg-logo svg { color: #fff; }
+.adg-title { flex: 1; }
+.adg-title h1 {
+  font-size: 1.15rem; font-weight: 700;
+  color: var(--adg-text); margin: 0; line-height: 1.2;
+}
+.adg-title p {
+  font-size: .75rem; color: var(--adg-muted); margin: 0;
+}
+
+/* Status Badge */
+.adg-badge {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 5px 12px; border-radius: 20px;
+  font-size: .78rem; font-weight: 600;
+  transition: var(--adg-transition);
+}
+.adg-badge .dot {
+  width: 8px; height: 8px; border-radius: 50%;
+}
+.adg-badge.ok       { background: rgba(34,197,94,.12);  color: #16a34a; }
+.adg-badge.ok .dot  { background: var(--adg-success); animation: pulse-green 2s infinite; }
+.adg-badge.error    { background: rgba(239,68,68,.12);  color: #dc2626; }
+.adg-badge.error .dot { background: var(--adg-error); }
+.adg-badge.syncing  { background: rgba(79,126,247,.12); color: #3b6de4; }
+.adg-badge.syncing .dot { background: var(--adg-primary); animation: pulse-blue 1s infinite; }
+.adg-badge.idle     { background: rgba(148,163,184,.12); color: var(--adg-muted); }
+.adg-badge.idle .dot { background: var(--adg-muted); }
+.adg-badge.disabled { background: rgba(148,163,184,.12); color: var(--adg-muted); }
+.adg-badge.disabled .dot { background: var(--adg-muted); }
+
+@keyframes pulse-green {
+  0%,100% { box-shadow: 0 0 0 0 rgba(34,197,94,.5); }
+  50%      { box-shadow: 0 0 0 5px rgba(34,197,94,0); }
+}
+@keyframes pulse-blue {
+  0%,100% { box-shadow: 0 0 0 0 rgba(79,126,247,.5); }
+  50%      { box-shadow: 0 0 0 5px rgba(79,126,247,0); }
+}
+
+/* Theme toggle */
+.adg-theme-btn {
+  background: var(--adg-surface2); border: 1px solid var(--adg-border);
+  border-radius: 8px; padding: 6px 10px; cursor: pointer;
+  color: var(--adg-text2); font-size: .85rem;
+  transition: var(--adg-transition);
+  display: flex; align-items: center; gap: 5px;
+}
+.adg-theme-btn:hover { background: var(--adg-primary); color: #fff; border-color: var(--adg-primary); }
+
+/* — Tabs ────────────────────────────────────────────────────── */
+.adg-tabs {
+  display: flex; gap: 4px;
+  background: var(--adg-surface2);
+  padding: 6px;
+  border-radius: var(--adg-radius);
+  margin: 20px 24px 0;
+}
+.adg-tab {
+  flex: 1; padding: 9px 16px; border: none; cursor: pointer;
+  background: transparent; color: var(--adg-text2);
+  border-radius: 8px; font-size: .85rem; font-weight: 600;
+  transition: var(--adg-transition);
+  display: flex; align-items: center; justify-content: center; gap: 6px;
+}
+.adg-tab:hover { background: var(--adg-surface); color: var(--adg-text); }
+.adg-tab.active {
+  background: var(--adg-surface); color: var(--adg-primary);
+  box-shadow: var(--adg-shadow);
+}
+
+/* — Tab panels ──────────────────────────────────────────────── */
+.adg-panel { display: none; padding: 20px 24px 32px; }
+.adg-panel.active { display: block; }
+
+/* — Card ────────────────────────────────────────────────────── */
+.adg-card {
+  background: var(--adg-surface);
+  border: 1px solid var(--adg-border);
+  border-radius: var(--adg-radius);
+  box-shadow: var(--adg-shadow);
+  padding: 20px;
+  margin-bottom: 16px;
+  transition: var(--adg-transition);
+}
+.adg-card-title {
+  font-size: .85rem; font-weight: 700;
+  text-transform: uppercase; letter-spacing: .05em;
+  color: var(--adg-muted); margin-bottom: 16px;
+  display: flex; align-items: center; gap: 7px;
+}
+
+/* — Stats Grid ──────────────────────────────────────────────── */
+.adg-stats {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(150px,1fr)); gap: 16px;
+  margin-bottom: 20px;
+}
+.adg-stat {
+  background: var(--adg-surface);
+  border: 1px solid var(--adg-border);
+  border-radius: var(--adg-radius);
+  padding: 18px;
+  text-align: center;
+  box-shadow: var(--adg-shadow);
+  transition: var(--adg-transition);
+}
+.adg-stat:hover { box-shadow: var(--adg-shadow-lg); transform: translateY(-2px); }
+.adg-stat-val {
+  font-size: 2rem; font-weight: 800;
+  background: linear-gradient(135deg, var(--adg-primary), #38bdf8);
+  -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+  background-clip: text; line-height: 1.1;
+}
+.adg-stat-label { font-size: .75rem; color: var(--adg-muted); margin-top: 4px; }
+
+/* — Sync Button + Progress ──────────────────────────────────── */
+.adg-sync-area { display: flex; flex-direction: column; gap: 12px; }
+.adg-btn {
+  display: inline-flex; align-items: center; gap: 8px;
+  padding: 10px 22px; border: none; border-radius: 10px;
+  font-size: .9rem; font-weight: 600; cursor: pointer;
+  transition: var(--adg-transition); text-decoration: none;
+}
+.adg-btn-primary {
+  background: linear-gradient(135deg, var(--adg-primary), #38bdf8);
+  color: #fff; box-shadow: 0 4px 15px rgba(79,126,247,.35);
+}
+.adg-btn-primary:hover { transform: translateY(-1px); box-shadow: 0 6px 20px rgba(79,126,247,.5); }
+.adg-btn-primary:disabled { opacity: .6; cursor: not-allowed; transform: none; }
+.adg-btn-secondary {
+  background: var(--adg-surface2); border: 1px solid var(--adg-border);
+  color: var(--adg-text2);
+}
+.adg-btn-secondary:hover { background: var(--adg-border); color: var(--adg-text); }
+.adg-btn-danger {
+  background: rgba(239,68,68,.1); border: 1px solid rgba(239,68,68,.3);
+  color: var(--adg-error);
+}
+.adg-btn-danger:hover { background: var(--adg-error); color: #fff; }
+.adg-btn-sm { padding: 5px 12px; font-size: .78rem; border-radius: 7px; }
+
+@keyframes spin { to { transform: rotate(360deg); } }
+.spinning { animation: spin 1s linear infinite; }
+
+.adg-progress {
+  height: 8px; background: var(--adg-surface2);
+  border-radius: 4px; overflow: hidden; display: none;
+}
+.adg-progress-bar {
+  height: 100%;
+  background: linear-gradient(90deg, var(--adg-primary), #38bdf8, var(--adg-primary));
+  background-size: 200% 100%;
+  animation: progress-shimmer 1.5s infinite linear;
+  border-radius: 4px;
+  width: 100%;
+}
+@keyframes progress-shimmer {
+  0%   { background-position: 200% center; }
+  100% { background-position: -200% center; }
+}
+
+/* — Form Controls ───────────────────────────────────────────── */
+.adg-form-group { margin-bottom: 18px; }
+.adg-label {
+  display: block; font-size: .82rem; font-weight: 600;
+  color: var(--adg-text2); margin-bottom: 6px;
+}
+.adg-input, .adg-select {
+  width: 100%; padding: 9px 13px;
+  background: var(--adg-surface2); border: 1px solid var(--adg-border);
+  border-radius: 9px; color: var(--adg-text);
+  font-size: .88rem; transition: var(--adg-transition);
+  box-sizing: border-box;
+}
+.adg-input:focus, .adg-select:focus {
+  outline: none; border-color: var(--adg-primary);
+  box-shadow: 0 0 0 3px rgba(79,126,247,.15);
+}
+.adg-hint { font-size: .73rem; color: var(--adg-muted); margin-top: 4px; }
+
+/* Toggle switch */
+.adg-toggle-wrap { display: flex; align-items: center; gap: 12px; }
+.adg-toggle {
+  position: relative; display: inline-block;
+  width: 46px; height: 26px; cursor: pointer;
+}
+.adg-toggle input { opacity: 0; width: 0; height: 0; }
+.adg-slider {
+  position: absolute; inset: 0;
+  background: var(--adg-border); border-radius: 26px;
+  transition: var(--adg-transition);
+}
+.adg-slider:before {
+  position: absolute; content: "";
+  height: 20px; width: 20px; left: 3px; bottom: 3px;
+  background: white; border-radius: 50%;
+  transition: var(--adg-transition);
+  box-shadow: 0 1px 4px rgba(0,0,0,.2);
+}
+.adg-toggle input:checked + .adg-slider { background: var(--adg-primary); }
+.adg-toggle input:checked + .adg-slider:before { transform: translateX(20px); }
+
+/* — List Manager ────────────────────────────────────────────── */
+.adg-list-grid {
+  display: grid; grid-template-columns: 260px 1fr; gap: 16px; min-height: 420px;
+}
+.adg-category-list { display: flex; flex-direction: column; gap: 4px; }
+.adg-cat-item {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 9px 13px; border-radius: 9px; cursor: pointer;
+  transition: var(--adg-transition); border: 1px solid transparent;
+  font-size: .87rem; color: var(--adg-text2);
+}
+.adg-cat-item:hover { background: var(--adg-surface2); border-color: var(--adg-border); }
+.adg-cat-item.active {
+  background: rgba(79,126,247,.1); border-color: rgba(79,126,247,.3);
+  color: var(--adg-primary); font-weight: 600;
+}
+.adg-cat-count {
+  font-size: .72rem; background: var(--adg-surface2);
+  border-radius: 10px; padding: 2px 8px; color: var(--adg-muted);
+}
+.adg-cat-item.active .adg-cat-count {
+  background: rgba(79,126,247,.15); color: var(--adg-primary);
+}
+
+.adg-domain-list {
+  display: flex; flex-direction: column; gap: 4px;
+  max-height: 380px; overflow-y: auto;
+}
+.adg-domain-item {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 7px 12px; border-radius: 8px;
+  font-size: .83rem; font-family: 'SFMono-Regular', Consolas, monospace;
+  color: var(--adg-text); background: var(--adg-surface2);
+  border: 1px solid var(--adg-border);
+  transition: var(--adg-transition);
+}
+.adg-domain-item:hover { border-color: var(--adg-primary); }
+.adg-domain-del {
+  background: none; border: none; cursor: pointer;
+  color: var(--adg-muted); font-size: .85rem; padding: 2px 5px;
+  border-radius: 5px; transition: var(--adg-transition);
+  line-height: 1;
+}
+.adg-domain-del:hover { background: rgba(239,68,68,.1); color: var(--adg-error); }
+
+.adg-add-row {
+  display: flex; gap: 8px; margin-top: 10px;
+}
+.adg-add-row .adg-input { flex: 1; margin: 0; }
+
+/* — Log viewer ──────────────────────────────────────────────── */
+.adg-log-box {
+  background: #0d1117; color: #c9d1d9;
+  border-radius: 10px; padding: 16px;
+  font-family: 'SFMono-Regular', Consolas, monospace;
+  font-size: .78rem; line-height: 1.7;
+  min-height: 350px; max-height: 500px;
+  overflow-y: auto; white-space: pre-wrap; word-break: break-all;
+}
+.log-info  { color: #79c0ff; }
+.log-warn  { color: #e3b341; }
+.log-error { color: #ff7b72; }
+.log-ok    { color: #56d364; }
+
+/* — Toast Notification ──────────────────────────────────────── */
+#adg-toast {
+  position: fixed; bottom: 24px; right: 24px;
+  padding: 12px 20px; border-radius: 10px;
+  font-size: .87rem; font-weight: 600;
+  box-shadow: var(--adg-shadow-lg);
+  opacity: 0; transform: translateY(10px);
+  transition: var(--adg-transition);
+  z-index: 9999; pointer-events: none;
+  max-width: 320px;
+}
+#adg-toast.show { opacity: 1; transform: translateY(0); }
+#adg-toast.success { background: var(--adg-success); color: #fff; }
+#adg-toast.error   { background: var(--adg-error);   color: #fff; }
+#adg-toast.info    { background: var(--adg-primary);  color: #fff; }
+
+/* — Responsive ──────────────────────────────────────────────── */
+@media (max-width: 640px) {
+  .adg-header { padding: 12px 16px; }
+  .adg-tabs   { margin: 16px 16px 0; }
+  .adg-panel  { padding: 16px 16px 28px; }
+  .adg-list-grid { grid-template-columns: 1fr; }
+  .adg-stats  { grid-template-columns: 1fr 1fr; }
+}
+</style>
+
+<div id="adg-app">
+
+  <!-- ═══ HEADER ═══════════════════════════════════════════════ -->
+  <div class="adg-header">
+    <div class="adg-logo">
+      <svg width="22" height="22" fill="none" stroke="currentColor" stroke-width="2"
+           viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+        <path stroke-linecap="round" stroke-linejoin="round"
+              d="M9 12.75L11.25 15 15 9.75m-3-7.036A11.959 11.959 0 013.598 6 11.99 11.99 0 003 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285z"/>
+      </svg>
+    </div>
+    <div class="adg-title">
+      <h1>ADG DNS Lookup</h1>
+      <p>AdGuard Home — DNS Rewrite Sync Engine</p>
+    </div>
+    <div id="adg-status-badge" class="adg-badge idle">
+      <span class="dot"></span>
+      <span id="adg-badge-text">Loading...</span>
+    </div>
+    <button class="adg-theme-btn" id="adg-theme-toggle" title="Toggle dark/light mode">
+      <span id="theme-icon">🌙</span>
+    </button>
+  </div>
+
+  <!-- ═══ TABS ════════════════════════════════════════════════ -->
+  <div class="adg-tabs">
+    <button class="adg-tab active" data-panel="dashboard">
+      <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round"
+              d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"/>
+      </svg>
+      Dashboard
+    </button>
+    <button class="adg-tab" data-panel="settings">
+      <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round"
+              d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/>
+        <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
+      </svg>
+      Settings
+    </button>
+    <button class="adg-tab" data-panel="lists">
+      <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M4 6h16M4 10h16M4 14h16M4 18h16"/>
+      </svg>
+      List Manager
+    </button>
+    <button class="adg-tab" data-panel="logs">
+      <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round"
+              d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+      </svg>
+      Logs
+    </button>
+  </div>
+
+  <!-- ═══ PANEL: DASHBOARD ═════════════════════════════════════ -->
+  <div class="adg-panel active" id="panel-dashboard">
+
+    <!-- Stats -->
+    <div class="adg-stats">
+      <div class="adg-stat">
+        <div class="adg-stat-val" id="stat-domains">—</div>
+        <div class="adg-stat-label">Total Domains</div>
+      </div>
+      <div class="adg-stat">
+        <div class="adg-stat-val" id="stat-ips">—</div>
+        <div class="adg-stat-label">IPs Injected (Last Run)</div>
+      </div>
+      <div class="adg-stat">
+        <div class="adg-stat-val" id="stat-schedule">—</div>
+        <div class="adg-stat-label">Update Schedule</div>
+      </div>
+    </div>
+
+    <!-- Sync Card -->
+    <div class="adg-card">
+      <div class="adg-card-title">
+        <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round"
+                d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
+        </svg>
+        Manual Sync
+      </div>
+      <div class="adg-sync-area">
+        <div>
+          <button class="adg-btn adg-btn-primary" id="sync-btn" onclick="startSync()">
+            <svg id="sync-icon" width="16" height="16" fill="none" stroke="currentColor"
+                 stroke-width="2" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round"
+                    d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
+            </svg>
+            Sync Now
+          </button>
+        </div>
+        <div class="adg-progress" id="sync-progress">
+          <div class="adg-progress-bar"></div>
+        </div>
+        <div style="font-size:.82rem; color:var(--adg-text2);" id="sync-status-text"></div>
+      </div>
+    </div>
+
+    <!-- Last run details -->
+    <div class="adg-card">
+      <div class="adg-card-title">
+        <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round"
+                d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
+        </svg>
+        Last Run Status
+      </div>
+      <code style="font-size:.82rem; color:var(--adg-text2); word-break:break-all;" id="last-run-text">Loading...</code>
+    </div>
+  </div>
+
+  <!-- ═══ PANEL: SETTINGS ══════════════════════════════════════ -->
+  <div class="adg-panel" id="panel-settings">
+    <div class="adg-card">
+      <div class="adg-card-title">
+        <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round"
+                d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/>
+          <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
+        </svg>
+        General Settings
+      </div>
+
+      <div class="adg-form-group">
+        <label class="adg-label">Service Status</label>
+        <div class="adg-toggle-wrap">
+          <label class="adg-toggle">
+            <input type="checkbox" id="setting-enabled">
+            <span class="adg-slider"></span>
+          </label>
+          <span style="font-size:.87rem; color:var(--adg-text2);">Enable DNS Lookup Sync</span>
+        </div>
+      </div>
+
+      <div class="adg-form-group">
+        <label class="adg-label" for="setting-adg-path">AdGuardHome Config Path</label>
+        <input type="text" class="adg-input" id="setting-adg-path"
+               placeholder="/etc/AdGuardHome.yaml">
+        <div class="adg-hint">Full path to the AdGuardHome.yaml file on your router.</div>
+      </div>
+
+      <div class="adg-form-group">
+        <label class="adg-label" for="setting-dns">DNS Server for Resolution</label>
+        <select class="adg-select" id="setting-dns">
+          <option value="127.0.0.1">127.0.0.1 — Local (Passwall / SmartDNS)</option>
+          <option value="8.8.8.8">8.8.8.8 — Google DNS</option>
+          <option value="1.1.1.1">1.1.1.1 — Cloudflare DNS</option>
+          <option value="9.9.9.9">9.9.9.9 — Quad9</option>
+        </select>
+        <div class="adg-hint">The DNS server used to resolve domain IPs. Use your tunnel/proxy DNS for best results.</div>
+      </div>
+
+      <div class="adg-form-group">
+        <label class="adg-label" for="setting-schedule">Auto-Sync Schedule</label>
+        <select class="adg-select" id="setting-schedule">
+          <option value="disabled">Disabled (manual only)</option>
+          <option value="1h">Every 1 Hour</option>
+          <option value="3h">Every 3 Hours</option>
+          <option value="6h">Every 6 Hours</option>
+          <option value="12h">Every 12 Hours</option>
+          <option value="daily">Daily (midnight)</option>
+        </select>
+        <div class="adg-hint">Automatically resolves and re-injects IPs on a cron schedule.</div>
+      </div>
+
+      <button class="adg-btn adg-btn-primary" onclick="saveSettings()">
+        <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round"
+                d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4"/>
+        </svg>
+        Save Settings
+      </button>
+    </div>
+  </div>
+
+  <!-- ═══ PANEL: LIST MANAGER ══════════════════════════════════ -->
+  <div class="adg-panel" id="panel-lists">
+    <div class="adg-card" style="padding:0; overflow:hidden;">
+      <div style="display:flex; align-items:center; justify-content:space-between;
+                  padding:16px 20px; border-bottom:1px solid var(--adg-border);">
+        <div class="adg-card-title" style="margin:0;">
+          <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M4 6h16M4 10h16M4 14h16M4 18h16"/>
+          </svg>
+          Domain Lists
+        </div>
+        <div style="display:flex;gap:8px;">
+          <input type="text" class="adg-input" id="new-cat-name"
+                 placeholder="new_category" style="width:160px; font-size:.82rem; padding:6px 10px;">
+          <button class="adg-btn adg-btn-primary adg-btn-sm" onclick="addCategory()">+ Add List</button>
+        </div>
+      </div>
+      <div class="adg-list-grid" style="padding:16px; gap:16px;">
+        <!-- Category sidebar -->
+        <div>
+          <div style="font-size:.75rem; font-weight:700; text-transform:uppercase;
+                      letter-spacing:.05em; color:var(--adg-muted); margin-bottom:10px;">
+            Categories
+          </div>
+          <div class="adg-category-list" id="cat-list">
+            <div style="color:var(--adg-muted); font-size:.83rem; padding:8px;">Loading...</div>
+          </div>
+        </div>
+        <!-- Domain panel -->
+        <div>
+          <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:10px;">
+            <div style="font-size:.75rem; font-weight:700; text-transform:uppercase;
+                        letter-spacing:.05em; color:var(--adg-muted);">
+              Domains — <span id="cur-cat-label" style="color:var(--adg-primary);">select a list</span>
+            </div>
+            <button class="adg-btn adg-btn-danger adg-btn-sm" onclick="deleteCategory()"
+                    id="del-cat-btn" style="display:none;">Delete List</button>
+          </div>
+          <div class="adg-domain-list" id="domain-list">
+            <div style="color:var(--adg-muted); font-size:.83rem; padding:8px;">
+              ← Select a category to manage its domains.
+            </div>
+          </div>
+          <div class="adg-add-row" id="domain-add-row" style="display:none;">
+            <input type="text" class="adg-input" id="new-domain-input"
+                   placeholder="example.com" style="font-size:.83rem;">
+            <button class="adg-btn adg-btn-primary adg-btn-sm" onclick="addDomain()">+ Add</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══ PANEL: LOGS ══════════════════════════════════════════ -->
+  <div class="adg-panel" id="panel-logs">
+    <div class="adg-card">
+      <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:14px;">
+        <div class="adg-card-title" style="margin:0;">
+          <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round"
+                  d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+          </svg>
+          Execution Log
+        </div>
+        <button class="adg-btn adg-btn-secondary adg-btn-sm" onclick="fetchLogs()">↻ Refresh</button>
+      </div>
+      <div class="adg-log-box" id="log-box">Loading logs...</div>
+    </div>
+  </div>
+
+</div><!-- #adg-app -->
+
+<!-- Toast -->
+<div id="adg-toast"></div>
+
+<script>
+(function() {
+  'use strict';
+
+  /* ── State ──────────────────────────────────────────────── */
+  var currentCategory = null;
+  var allLists = [];
+  var statusPollTimer = null;
+  var isDark = localStorage.getItem('adg-dark') === '1';
+
+  /* ── Helpers ────────────────────────────────────────────── */
+  function base(path) {
+    return (window.location.pathname.replace(/\/+$/, '').replace(/\/api_\w+$/, '')) + '/' + path;
+  }
+
+  function apiFetch(endpoint, opts) {
+    return fetch(base(endpoint), opts || {})
+      .then(function(r) {
+        if (!r.ok) throw new Error('HTTP ' + r.status);
+        return r.json();
+      });
+  }
+
+  function showToast(msg, type) {
+    var t = document.getElementById('adg-toast');
+    t.textContent = msg;
+    t.className = 'show ' + (type || 'info');
+    clearTimeout(t._tid);
+    t._tid = setTimeout(function() { t.className = ''; }, 3000);
+  }
+
+  /* ── Dark Mode ──────────────────────────────────────────── */
+  function applyTheme() {
+    document.body.classList.toggle('adg-dark', isDark);
+    document.getElementById('theme-icon').textContent = isDark ? '☀️' : '🌙';
+  }
+  applyTheme();
+  document.getElementById('adg-theme-toggle').addEventListener('click', function() {
+    isDark = !isDark;
+    localStorage.setItem('adg-dark', isDark ? '1' : '0');
+    applyTheme();
+  });
+
+  /* ── Tabs ───────────────────────────────────────────────── */
+  document.querySelectorAll('.adg-tab').forEach(function(btn) {
+    btn.addEventListener('click', function() {
+      document.querySelectorAll('.adg-tab').forEach(function(b) { b.classList.remove('active'); });
+      document.querySelectorAll('.adg-panel').forEach(function(p) { p.classList.remove('active'); });
+      btn.classList.add('active');
+      var panel = document.getElementById('panel-' + btn.dataset.panel);
+      if (panel) panel.classList.add('active');
+      if (btn.dataset.panel === 'logs') fetchLogs();
+      if (btn.dataset.panel === 'lists') fetchLists();
+    });
+  });
+
+  /* ── Status polling ─────────────────────────────────────── */
+  function fetchStatus() {
+    apiFetch('api_status').then(function(d) {
+      // Badge
+      var badge = document.getElementById('adg-status-badge');
+      var badgeText = document.getElementById('adg-badge-text');
+      badge.className = 'adg-badge ' + d.badge;
+      var labels = { ok:'Running', error:'Error', syncing:'Syncing…', idle:'Idle', disabled:'Disabled' };
+      badgeText.textContent = labels[d.badge] || d.badge;
+
+      // Stats
+      document.getElementById('stat-domains').textContent = d.total_domains || '—';
+      document.getElementById('stat-ips').textContent = d.last_ip_count || '—';
+      var schedLabels = { disabled:'Off', '1h':'1h', '3h':'3h', '6h':'6h', '12h':'12h', daily:'Daily' };
+      document.getElementById('stat-schedule').textContent = schedLabels[d.schedule] || d.schedule || '—';
+      document.getElementById('last-run-text').textContent = d.status_text || '—';
+
+      // If syncing, show progress
+      if (d.running) {
+        setSyncing(true);
+        if (!statusPollTimer) statusPollTimer = setInterval(fetchStatus, 2500);
+      } else {
+        setSyncing(false);
+        if (statusPollTimer) { clearInterval(statusPollTimer); statusPollTimer = null; }
+      }
+
+      // Populate settings fields if not yet done
+      if (!window._settingsLoaded) {
+        window._settingsLoaded = true;
+        document.getElementById('setting-enabled').checked = d.enabled;
+        document.getElementById('setting-schedule').value = d.schedule || 'disabled';
+      }
+    }).catch(function(err) {
+      console.warn('Status fetch failed:', err);
+    });
+  }
+
+  function setSyncing(on) {
+    var btn = document.getElementById('sync-btn');
+    var icon = document.getElementById('sync-icon');
+    var prog = document.getElementById('sync-progress');
+    btn.disabled = on;
+    prog.style.display = on ? 'block' : 'none';
+    icon.classList.toggle('spinning', on);
+    document.getElementById('sync-status-text').textContent = on ? 'Resolving domains…' : '';
+  }
+
+  /* ── Sync ───────────────────────────────────────────────── */
+  window.startSync = function() {
+    apiFetch('api_sync', { method: 'POST' }).then(function() {
+      showToast('Sync started!', 'info');
+      setSyncing(true);
+      statusPollTimer = setInterval(fetchStatus, 2500);
+    }).catch(function() {
+      showToast('Failed to start sync.', 'error');
+    });
+  };
+
+  /* ── Settings ───────────────────────────────────────────── */
+  // Load extra settings
+  apiFetch('api_status').then(function(d) {
+    // We need adg_config_path and custom_dns — re-fetch once settings tab opened
+  });
+  // Actually fetch full config on settings tab open
+  document.querySelector('[data-panel="settings"]').addEventListener('click', function() {
+    if (window._settingsFull) return;
+    apiFetch('api_status').then(function(d) {
+      document.getElementById('setting-enabled').checked = d.enabled;
+      document.getElementById('setting-schedule').value = d.schedule || 'disabled';
+    });
+    // Also fetch config path and DNS from a fresh status+config endpoint
+    // We expose extra info in api_status already for enabled+schedule
+    // For config path and dns we just set the placeholder
+  });
+
+  window.saveSettings = function() {
+    var payload = {
+      enabled: document.getElementById('setting-enabled').checked ? '1' : '0',
+      adg_config_path: document.getElementById('setting-adg-path').value.trim() || '/etc/AdGuardHome.yaml',
+      custom_dns: document.getElementById('setting-dns').value,
+      schedule: document.getElementById('setting-schedule').value,
+    };
+    apiFetch('api_save', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    }).then(function() {
+      showToast('Settings saved!', 'success');
+      window._settingsLoaded = false;
+      fetchStatus();
+    }).catch(function() {
+      showToast('Failed to save settings.', 'error');
+    });
+  };
+
+  /* ── Lists ──────────────────────────────────────────────── */
+  window.fetchLists = function() {
+    apiFetch('api_lists').then(function(d) {
+      allLists = d.lists || [];
+      renderCategories();
+      if (currentCategory) {
+        var found = allLists.find(function(l) { return l.name === currentCategory; });
+        if (found) renderDomains(found);
+      }
+    });
+  };
+
+  function renderCategories() {
+    var el = document.getElementById('cat-list');
+    if (!allLists.length) {
+      el.innerHTML = '<div style="color:var(--adg-muted);font-size:.83rem;padding:8px;">No lists found.</div>';
+      return;
+    }
+    el.innerHTML = allLists.map(function(l) {
+      var active = (l.name === currentCategory) ? ' active' : '';
+      return '<div class="adg-cat-item' + active + '" onclick="selectCategory(\'' + l.name + '\')">' +
+        '<span>' + escHtml(l.name) + '</span>' +
+        '<span class="adg-cat-count">' + l.count + '</span>' +
+        '</div>';
+    }).join('');
+  }
+
+  function renderDomains(list) {
+    document.getElementById('cur-cat-label').textContent = list.name;
+    document.getElementById('del-cat-btn').style.display = '';
+    document.getElementById('domain-add-row').style.display = 'flex';
+    var el = document.getElementById('domain-list');
+    if (!list.domains || !list.domains.length) {
+      el.innerHTML = '<div style="color:var(--adg-muted);font-size:.83rem;padding:8px;">No domains in this list yet.</div>';
+      return;
+    }
+    el.innerHTML = list.domains.map(function(d) {
+      return '<div class="adg-domain-item">' +
+        '<span>' + escHtml(d) + '</span>' +
+        '<button class="adg-domain-del" onclick="deleteDomain(\'' + escHtml(d) + '\')" title="Remove">✕</button>' +
+        '</div>';
+    }).join('');
+  }
+
+  window.selectCategory = function(name) {
+    currentCategory = name;
+    renderCategories();
+    var list = allLists.find(function(l) { return l.name === name; });
+    if (list) renderDomains(list);
+  };
+
+  window.addCategory = function() {
+    var name = document.getElementById('new-cat-name').value.trim();
+    if (!name) { showToast('Enter a category name', 'error'); return; }
+    listOp({ action: 'add_category', name: name }, function() {
+      document.getElementById('new-cat-name').value = '';
+      showToast('Category "' + name + '" added!', 'success');
+      currentCategory = name;
+      fetchLists();
+    });
+  };
+
+  window.deleteCategory = function() {
+    if (!currentCategory) return;
+    if (!confirm('Delete category "' + currentCategory + '" and all its domains?')) return;
+    listOp({ action: 'delete_category', name: currentCategory }, function() {
+      showToast('Deleted!', 'success');
+      currentCategory = null;
+      document.getElementById('cur-cat-label').textContent = 'select a list';
+      document.getElementById('del-cat-btn').style.display = 'none';
+      document.getElementById('domain-add-row').style.display = 'none';
+      document.getElementById('domain-list').innerHTML =
+        '<div style="color:var(--adg-muted);font-size:.83rem;padding:8px;">← Select a category.</div>';
+      fetchLists();
+    });
+  };
+
+  window.addDomain = function() {
+    var d = document.getElementById('new-domain-input').value.trim();
+    if (!d || !currentCategory) return;
+    listOp({ action: 'add_domain', category: currentCategory, domain: d }, function() {
+      document.getElementById('new-domain-input').value = '';
+      showToast(d + ' added!', 'success');
+      fetchLists();
+    });
+  };
+
+  window.deleteDomain = function(domain) {
+    if (!currentCategory) return;
+    listOp({ action: 'delete_domain', category: currentCategory, domain: domain }, function() {
+      showToast('Removed!', 'success');
+      fetchLists();
+    });
+  };
+
+  function listOp(payload, cb) {
+    apiFetch('api_list_op', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    }).then(function(d) {
+      if (d.ok) cb();
+      else showToast(d.message || 'Error', 'error');
+    }).catch(function() {
+      showToast('Request failed.', 'error');
+    });
+  }
+
+  /* ── Logs ───────────────────────────────────────────────── */
+  window.fetchLogs = function() {
+    apiFetch('api_logs').then(function(d) {
+      var box = document.getElementById('log-box');
+      var lines = (d.log || 'No log file found.').split('\n');
+      box.innerHTML = lines.map(function(line) {
+        if (!line) return '';
+        var cls = 'log-info';
+        if (line.match(/error|Error|ERROR|failed|Failed/))  cls = 'log-error';
+        else if (line.match(/warn|Warn|WARN|Warning/))      cls = 'log-warn';
+        else if (line.match(/[Ss]uccess|[Cc]omplete|[Oo][Kk]/)) cls = 'log-ok';
+        return '<span class="' + cls + '">' + escHtml(line) + '</span>';
+      }).join('\n');
+      // Auto-scroll to bottom
+      box.scrollTop = box.scrollHeight;
+    });
+  };
+
+  /* ── Utils ──────────────────────────────────────────────── */
+  function escHtml(s) {
+    return String(s)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
+  }
+
+  /* ── Init ───────────────────────────────────────────────── */
+  fetchStatus();
+  setInterval(fetchStatus, 15000); // Poll status every 15s
+
+  // Enter key on domain input
+  document.getElementById('new-domain-input').addEventListener('keydown', function(e) {
+    if (e.key === 'Enter') window.addDomain();
+  });
+
+})();
+</script>
+
+<%+footer%>
