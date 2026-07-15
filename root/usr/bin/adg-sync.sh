@@ -70,6 +70,15 @@ if [ -z "$ADG_CONF" ] || [ ! -f "$ADG_CONF" ]; then
         fi
     done
     
+    # If still not found, try a broad find
+    if [ -z "$found" ]; then
+        path=$(find /etc /var /opt /root /mnt -maxdepth 4 -type f -name '*dGuardHome.yaml' -o -name '*dguardhome.yaml' 2>/dev/null | head -n 1)
+        if [ -n "$path" ] && [ -f "$path" ]; then
+            ADG_CONF="$path"
+            found="1"
+        fi
+    fi
+
     # If still not found, keep what we had so the error below logs it
     if [ -z "$found" ] && [ -z "$ADG_CONF" ]; then
         ADG_CONF="/etc/adguardhome.yaml"
