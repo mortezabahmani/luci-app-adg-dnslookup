@@ -71,6 +71,9 @@ fi
 DNS_SERVER=$(uci_get custom_dns)
 [ -z "$DNS_SERVER" ] && DNS_SERVER="127.0.0.1"
 
+DNS_PROTO=$(uci_get dns_protocol)
+[ -z "$DNS_PROTO" ] && DNS_PROTO="udp"
+
 if [ ! -f "$ADG_CONF" ]; then
     log_error "AdGuardHome config not found at '$ADG_CONF'"
     echo "Error: Config not found at $ADG_CONF" > "$STATUS_FILE"
@@ -78,17 +81,35 @@ if [ ! -f "$ADG_CONF" ]; then
 fi
 
 log_info "Config: $ADG_CONF"
-log_info "DNS Server: $DNS_SERVER"
+log_info "DNS Server: $DNS_SERVER ($DNS_PROTO)"
 
 # ─── Domain resolution ────────────────────────────────────────────────────────
 > "$TMP_FILE"
 
 resolve_domain() {
     local domain="$1"
-    local ips
-    ips=$(nslookup "$domain" "$DNS_SERVER" 2>/dev/null \
-        | awk '/^Address: / { print $2 }' \
-        | grep -E '^([0-9]{1,3}\.){3}[0-9]{1,3}$')
+    local ips=""
+
+    if [ "$DNS_PROTO" = "doh" ]; then
+        if ! command -v curl >/dev/null 2>&1; then
+            log_error "curl is required for DoH but not installed. Skipping $domain"
+            return
+        fi
+        ips=$(curl -s -H 'accept: application/dns-json' "$DNS_SERVER?name=$domain&type=A" 2>/dev/null \
+            | grep -o '"data":"[^"]*"' | cut -d'"' -f4 | grep -E '^([0-9]{1,3}\.){3}[0-9]{1,3}$')
+    elif [ "$DNS_PROTO" = "tcp" ]; then
+        if ! command -v dig >/dev/null 2>&1; then
+            log_error "bind-dig is required for TCP DNS but not installed. Skipping $domain"
+            return
+        fi
+        ips=$(dig +tcp +short "@$DNS_SERVER" "$domain" 2>/dev/null \
+            | grep -E '^([0-9]{1,3}\.){3}[0-9]{1,3}$')
+    else
+        # Default UDP via nslookup
+        ips=$(nslookup "$domain" "$DNS_SERVER" 2>/dev/null \
+            | awk '/^Address: / { print $2 }' \
+            | grep -E '^([0-9]{1,3}\.){3}[0-9]{1,3}$')
+    fi
 
     if [ -z "$ips" ]; then
         log_warn "No IPs found for: $domain"

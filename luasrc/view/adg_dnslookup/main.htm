@@ -496,14 +496,19 @@ body.adg-dark {
       </div>
 
       <div class="adg-form-group">
-        <label class="adg-label" for="setting-dns">DNS Server for Resolution</label>
-        <select class="adg-select" id="setting-dns">
-          <option value="127.0.0.1">127.0.0.1 — Local (Passwall / SmartDNS)</option>
-          <option value="8.8.8.8">8.8.8.8 — Google DNS</option>
-          <option value="1.1.1.1">1.1.1.1 — Cloudflare DNS</option>
-          <option value="9.9.9.9">9.9.9.9 — Quad9</option>
+        <label class="adg-label" for="setting-dns-proto">DNS Protocol</label>
+        <select class="adg-select" id="setting-dns-proto">
+          <option value="udp">UDP (nslookup - fast/default)</option>
+          <option value="tcp">TCP (dig +tcp - reliable)</option>
+          <option value="doh">DoH (curl - secure)</option>
         </select>
-        <div class="adg-hint">The DNS server used to resolve domain IPs. Use your tunnel/proxy DNS for best results.</div>
+        <div class="adg-hint">Select the protocol for resolution. DoH requires <code>curl</code>, TCP requires <code>bind-dig</code>.</div>
+      </div>
+
+      <div class="adg-form-group">
+        <label class="adg-label" for="setting-dns">DNS Server / URL</label>
+        <input type="text" class="adg-input" id="setting-dns" placeholder="e.g. 1.1.1.1 or https://cloudflare-dns.com/dns-query">
+        <div class="adg-hint">The DNS server IP or DoH URL used to resolve domains.</div>
       </div>
 
       <div class="adg-form-group">
@@ -741,17 +746,19 @@ body.adg-dark {
     apiFetch('api_status').then(function(d) {
       document.getElementById('setting-enabled').checked = d.enabled;
       document.getElementById('setting-schedule').value = d.schedule || 'disabled';
+      document.getElementById('setting-adg-path').value = d.adg_config_path || '';
+      document.getElementById('setting-dns').value = d.custom_dns || '127.0.0.1';
+      document.getElementById('setting-dns-proto').value = d.dns_protocol || 'udp';
+      window._settingsFull = true;
     });
-    // Also fetch config path and DNS from a fresh status+config endpoint
-    // We expose extra info in api_status already for enabled+schedule
-    // For config path and dns we just set the placeholder
   });
 
   window.saveSettings = function() {
     var payload = {
       enabled: document.getElementById('setting-enabled').checked ? '1' : '0',
-      adg_config_path: document.getElementById('setting-adg-path').value.trim() || '/etc/AdGuardHome.yaml',
-      custom_dns: document.getElementById('setting-dns').value,
+      adg_config_path: document.getElementById('setting-adg-path').value.trim(),
+      custom_dns: document.getElementById('setting-dns').value.trim() || '127.0.0.1',
+      dns_protocol: document.getElementById('setting-dns-proto').value,
       schedule: document.getElementById('setting-schedule').value,
     };
     apiFetch('api_save', {

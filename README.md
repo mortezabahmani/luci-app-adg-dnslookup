@@ -281,3 +281,9 @@ Pull requests are welcome! For major changes, please open an issue first to disc
 ## 📄 License
 
 [MIT](LICENSE) © 2024 mortezabahmani
+
+### Multi-Protocol DNS Support
+Starting with v1.2.0, you can select between UDP, TCP, and DoH (DNS-over-HTTPS) for domain resolution directly in the settings panel.
+- **UDP:** Uses standard `nslookup`. Fast and lightweight.
+- **TCP:** Uses `bind-dig` for reliable TCP resolution.
+- **DoH:** Uses `curl` to securely resolve domains via JSON endpoints (e.g. `https://cloudflare-dns.com/dns-query`).

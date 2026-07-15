@@ -40,11 +40,11 @@ fi
 
 if [ "$USE_APK" = "1" ]; then
     PKG_EXT="apk"
-    PKG_FILE="${PKG_NAME}_1.1.0-1_all.apk"
+    PKG_FILE="${PKG_NAME}_1.2.0-1_all.apk"
     INSTALL_CMD="apk add --allow-untrusted"
 else
     PKG_EXT="ipk"
-    PKG_FILE="${PKG_NAME}_1.1.0-1_all.ipk"
+    PKG_FILE="${PKG_NAME}_1.2.0-1_all.ipk"
     INSTALL_CMD="opkg install"
 fi
 
@@ -71,12 +71,18 @@ fi
 
 echo "[OK] Download complete."
 
+# ── Install Dependencies ────────────────────────────────────────────────────────
+echo "[INFO] Installing dependencies (curl, bind-dig)..."
+if [ "$USE_APK" = "1" ]; then
+    apk update -q || true
+    apk add curl bind-dig -q || true
+else
+    opkg update >/dev/null 2>&1 || true
+    opkg install curl bind-dig >/dev/null 2>&1 || true
+fi
+
 # ── Install ───────────────────────────────────────────────────────────────────
 echo "[INFO] Installing package..."
-
-if [ "$USE_APK" = "0" ]; then
-    opkg update >/dev/null 2>&1 || true
-fi
 
 if $INSTALL_CMD "$TMP_PKG"; then
     echo ""

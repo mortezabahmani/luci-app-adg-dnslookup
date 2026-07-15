@@ -2,7 +2,7 @@
 # Local build script — creates a valid .ipk without needing the full OpenWrt SDK
 set -e
 PKG_NAME="luci-app-adg-dnslookup"
-PKG_VERSION="1.1.2"
+PKG_VERSION="1.2.0"
 PKG_RELEASE="1"
 FULL_VER="${PKG_VERSION}-${PKG_RELEASE}"
 SRC="$(cd "$(dirname "$0")/.." && pwd)"
@@ -20,7 +20,7 @@ INSTALLED_SIZE=$(du -sk "$WORKDIR/data" | cut -f1)
 cat > "$WORKDIR/control/control" << CTRL
 Package: $PKG_NAME
 Version: $FULL_VER
-Depends: libc, luci-base, adguardhome
+Depends: libc, luci-base, adguardhome, curl, bind-dig
 License: MIT
 Section: luci
 Architecture: all
