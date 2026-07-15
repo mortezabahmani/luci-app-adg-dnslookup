@@ -78,8 +78,26 @@ This plugin resolves your chosen domains using any DNS server (local or remote),
 
 Run this on your OpenWrt router terminal. It **auto-detects** your OpenWrt version and architecture, then downloads and installs the correct package format (`ipk` or `apk`):
 
+### OpenWrt 23.x (and older)
+
 ```sh
-wget -qO- https://github.com/mortezabahmani/luci-app-adg-dnslookup/releases/latest/download/install.sh | sh
+wget -O /tmp/luci-app-adg-dnslookup.ipk https://github.com/mortezabahmani/luci-app-adg-dnslookup/releases/latest/download/luci-app-adg-dnslookup_1.2.1-1_all.ipk
+opkg update
+opkg install curl bind-dig
+opkg install /tmp/luci-app-adg-dnslookup.ipk
+rm /tmp/luci-app-adg-dnslookup.ipk
+service rpcd restart
+```
+
+### OpenWrt 24.10+ (Alpine based)
+
+```sh
+wget -O /tmp/luci-app-adg-dnslookup.apk https://github.com/mortezabahmani/luci-app-adg-dnslookup/releases/latest/download/luci-app-adg-dnslookup_1.2.1-1_all.apk
+apk update
+apk add curl bind-dig
+apk add --allow-untrusted /tmp/luci-app-adg-dnslookup.apk
+rm /tmp/luci-app-adg-dnslookup.apk
+service rpcd restart
 ```
 
 > **Requires:** `wget` (pre-installed on all OpenWrt), internet access on router.
