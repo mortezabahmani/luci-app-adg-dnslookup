@@ -18,16 +18,13 @@ This plugin solves this by using **native shell scripts (`sh`) and OpenWrt's UCI
 - **Pre-filled Extensive Lists**: Comes out of the box with extensive, categorized domain lists for Cloudflare, Fastly, Google, Meta, Microsoft, AWS, and more!
 - **Safe YAML Injection**: Uses precision `awk`/`sed` text markers to inject rewrites without corrupting your AdGuard configuration.
 
-## 🚀 Easy Installation (One-Line Script)
-Run this command in your OpenWrt terminal to download and install the latest compiled package automatically:
+## 🚀 Easy Installation
+Run this command in your OpenWrt terminal to download and install the package automatically:
 ```sh
-# For OpenWrt 23.05 and older (.ipk)
-wget -qO- https://github.com/USERNAME/luci-app-adg-dnslookup/releases/latest/download/install.sh | sh
-
-# For OpenWrt 24.xx+ (.apk)
-wget -qO- https://github.com/USERNAME/luci-app-adg-dnslookup/releases/latest/download/install-apk.sh | sh
+# For OpenWrt (OPKG)
+opkg update
+opkg install https://github.com/mortezabahmani/luci-app-adg-dnslookup/releases/download/v1.0.0/luci-app-adg-dnslookup_1.0.0-1_all.ipk
 ```
-*(Note: Replace USERNAME with your actual GitHub username after the release is published)*
 
 ## 🛠️ Step-by-Step Build Guide (Compile from Source)
 If you prefer to compile the package yourself using the official OpenWrt SDK:

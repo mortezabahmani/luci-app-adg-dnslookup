@@ -18,14 +18,11 @@
 - **لیست‌های آماده و جامع**: دارای دسته‌بندی‌های پیش‌فرض برای دامنه‌های Cloudflare, Fastly, Google, Meta, Microsoft و...
 - **تزریق ایمن به YAML**: استفاده از نشانگرهای دقیق متنی (`awk`/`sed`) برای جلوگیری از خرابی تنظیمات AdGuard.
 
-## 🚀 نصب آسان (اسکریپت یک خطی)
+## 🚀 نصب آسان
 برای نصب آخرین نسخه کامپایل شده به صورت خودکار، دستور زیر را در ترمینال OpenWrt وارد کنید:
 ```sh
-# برای نسخه‌های OpenWrt 23.05 و قدیمی‌تر (.ipk)
-wget -qO- https://github.com/USERNAME/luci-app-adg-dnslookup/releases/latest/download/install.sh | sh
-
-# برای نسخه‌های OpenWrt 24.xx به بعد (.apk)
-wget -qO- https://github.com/USERNAME/luci-app-adg-dnslookup/releases/latest/download/install-apk.sh | sh
+opkg update
+opkg install https://github.com/mortezabahmani/luci-app-adg-dnslookup/releases/download/v1.0.0/luci-app-adg-dnslookup_1.0.0-1_all.ipk
 ```
 
 ## 🛠️ راهنمای گام‌به‌گام بیلد از سورس
