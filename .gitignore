@@ -1,3 +1,5 @@
 # Build artifacts tracked separately
+*.apk
+*.ipk
 *.tmp
 apk-build/

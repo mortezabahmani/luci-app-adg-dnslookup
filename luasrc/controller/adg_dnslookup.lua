@@ -68,7 +68,9 @@ function api_status()
         running       = running,
         enabled       = (enabled == "1"),
         schedule      = get_uci_main("schedule", "disabled"),
-        adg_config_path = get_uci_main("adg_config_path", ""),
+        adg_url       = get_uci_main("adg_url", "http://127.0.0.1:3000"),
+        adg_user      = get_uci_main("adg_user", ""),
+        adg_pass      = get_uci_main("adg_pass", ""),
         custom_dns    = get_uci_main("custom_dns", ""),
         dns_protocol  = get_uci_main("dns_protocol", "udp"),
     })
@@ -107,7 +109,7 @@ function api_save()
         return
     end
 
-    local allowed = { enabled=1, adg_config_path=1, custom_dns=1, schedule=1, dns_protocol=1 }
+    local allowed = { enabled=1, adg_url=1, adg_user=1, adg_pass=1, custom_dns=1, schedule=1, dns_protocol=1 }
     for k, v in pairs(data) do
         if allowed[k] then
             uci:set("adg_dnslookup", "main", k, tostring(v))

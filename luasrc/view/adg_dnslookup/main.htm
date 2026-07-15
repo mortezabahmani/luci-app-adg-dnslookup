@@ -489,10 +489,22 @@ body.adg-dark {
       </div>
 
       <div class="adg-form-group">
-        <label class="adg-label" for="setting-adg-path">AdGuardHome Config Path</label>
-        <input type="text" class="adg-input" id="setting-adg-path"
-               placeholder="/etc/AdGuardHome.yaml">
-        <div class="adg-hint">Full path to the AdGuardHome.yaml file on your router.</div>
+        <label class="adg-label" for="setting-adg-url">AdGuardHome API URL</label>
+        <input type="text" class="adg-input" id="setting-adg-url"
+               placeholder="http://127.0.0.1:3000">
+        <div class="adg-hint">Base URL of the AdGuardHome web interface (e.g. http://127.0.0.1:3000).</div>
+      </div>
+
+      <div class="adg-form-group">
+        <label class="adg-label" for="setting-adg-user">AdGuardHome Username</label>
+        <input type="text" class="adg-input" id="setting-adg-user" placeholder="admin" autocomplete="off">
+        <div class="adg-hint">Leave blank if authentication is disabled.</div>
+      </div>
+
+      <div class="adg-form-group">
+        <label class="adg-label" for="setting-adg-pass">AdGuardHome Password</label>
+        <input type="password" class="adg-input" id="setting-adg-pass" placeholder="••••••••" autocomplete="off">
+        <div class="adg-hint">Leave blank if authentication is disabled.</div>
       </div>
 
       <div class="adg-form-group">
@@ -738,15 +750,17 @@ body.adg-dark {
   /* ── Settings ───────────────────────────────────────────── */
   // Load extra settings
   apiFetch('api_status').then(function(d) {
-    // We need adg_config_path and custom_dns — re-fetch once settings tab opened
+    // We need API settings — fetch once settings tab opened
   });
-  // Actually fetch full config on settings tab open
+  // Fetch full config on settings tab open
   document.querySelector('[data-panel="settings"]').addEventListener('click', function() {
     if (window._settingsFull) return;
     apiFetch('api_status').then(function(d) {
       document.getElementById('setting-enabled').checked = d.enabled;
       document.getElementById('setting-schedule').value = d.schedule || 'disabled';
-      document.getElementById('setting-adg-path').value = d.adg_config_path || '';
+      document.getElementById('setting-adg-url').value = d.adg_url || 'http://127.0.0.1:3000';
+      document.getElementById('setting-adg-user').value = d.adg_user || '';
+      document.getElementById('setting-adg-pass').value = d.adg_pass || '';
       document.getElementById('setting-dns').value = d.custom_dns || '127.0.0.1';
       document.getElementById('setting-dns-proto').value = d.dns_protocol || 'udp';
       window._settingsFull = true;
@@ -756,7 +770,9 @@ body.adg-dark {
   window.saveSettings = function() {
     var payload = {
       enabled: document.getElementById('setting-enabled').checked ? '1' : '0',
-      adg_config_path: document.getElementById('setting-adg-path').value.trim(),
+      adg_url: document.getElementById('setting-adg-url').value.trim() || 'http://127.0.0.1:3000',
+      adg_user: document.getElementById('setting-adg-user').value.trim(),
+      adg_pass: document.getElementById('setting-adg-pass').value.trim(),
       custom_dns: document.getElementById('setting-dns').value.trim() || '127.0.0.1',
       dns_protocol: document.getElementById('setting-dns-proto').value,
       schedule: document.getElementById('setting-schedule').value,
