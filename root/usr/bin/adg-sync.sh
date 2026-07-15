@@ -58,14 +58,22 @@ if [ "$ENABLED" != "1" ]; then
 fi
 
 ADG_CONF=$(uci_get adg_config_path)
-if [ -z "$ADG_CONF" ]; then
+
+# If path is empty, or the file doesn't exist, try to auto-detect
+if [ -z "$ADG_CONF" ] || [ ! -f "$ADG_CONF" ]; then
+    found=""
     for path in "/etc/adguardhome.yaml" "/etc/AdGuardHome.yaml" "/var/adguardhome/adguardhome.yaml" "/opt/AdGuardHome/AdGuardHome.yaml"; do
         if [ -f "$path" ]; then
             ADG_CONF="$path"
+            found="1"
             break
         fi
     done
-    [ -z "$ADG_CONF" ] && ADG_CONF="/etc/adguardhome.yaml"
+    
+    # If still not found, keep what we had so the error below logs it
+    if [ -z "$found" ] && [ -z "$ADG_CONF" ]; then
+        ADG_CONF="/etc/adguardhome.yaml"
+    fi
 fi
 
 DNS_SERVER=$(uci_get custom_dns)
