@@ -58,7 +58,15 @@ if [ "$ENABLED" != "1" ]; then
 fi
 
 ADG_CONF=$(uci_get adg_config_path)
-[ -z "$ADG_CONF" ] && ADG_CONF="/etc/AdGuardHome.yaml"
+if [ -z "$ADG_CONF" ]; then
+    for path in "/etc/adguardhome.yaml" "/etc/AdGuardHome.yaml" "/var/adguardhome/adguardhome.yaml" "/opt/AdGuardHome/AdGuardHome.yaml"; do
+        if [ -f "$path" ]; then
+            ADG_CONF="$path"
+            break
+        fi
+    done
+    [ -z "$ADG_CONF" ] && ADG_CONF="/etc/adguardhome.yaml"
+fi
 
 DNS_SERVER=$(uci_get custom_dns)
 [ -z "$DNS_SERVER" ] && DNS_SERVER="127.0.0.1"

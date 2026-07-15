@@ -6,7 +6,7 @@ LUCI_DEPENDS:=+luci-base +adguardhome
 LUCI_PKGARCH:=all
 
 PKG_NAME:=luci-app-adg-dnslookup
-PKG_VERSION:=1.1.0
+PKG_VERSION:=1.1.2
 PKG_RELEASE:=1
 
 PKG_LICENSE:=MIT

@@ -109,15 +109,6 @@ body.adg-dark {
   50%      { box-shadow: 0 0 0 5px rgba(79,126,247,0); }
 }
 
-/* Theme toggle */
-.adg-theme-btn {
-  background: var(--adg-surface2); border: 1px solid var(--adg-border);
-  border-radius: 8px; padding: 6px 10px; cursor: pointer;
-  color: var(--adg-text2); font-size: .85rem;
-  transition: var(--adg-transition);
-  display: flex; align-items: center; gap: 5px;
-}
-.adg-theme-btn:hover { background: var(--adg-primary); color: #fff; border-color: var(--adg-primary); }
 
 /* — Tabs ────────────────────────────────────────────────────── */
 .adg-tabs {
@@ -380,9 +371,7 @@ body.adg-dark {
       <span class="dot"></span>
       <span id="adg-badge-text">Loading...</span>
     </div>
-    <button class="adg-theme-btn" id="adg-theme-toggle" title="Toggle dark/light mode">
-      <span id="theme-icon">🌙</span>
-    </button>
+
   </div>
 
   <!-- ═══ TABS ════════════════════════════════════════════════ -->
@@ -622,8 +611,6 @@ body.adg-dark {
   /* ── State ──────────────────────────────────────────────── */
   var currentCategory = null;
   var allLists = [];
-  var statusPollTimer = null;
-  var isDark = localStorage.getItem('adg-dark') === '1';
 
   /* ── Helpers ────────────────────────────────────────────── */
   function base(path) {
@@ -646,17 +633,31 @@ body.adg-dark {
     t._tid = setTimeout(function() { t.className = ''; }, 3000);
   }
 
+  var statusPollTimer = null;
+
   /* ── Dark Mode ──────────────────────────────────────────── */
   function applyTheme() {
+    var isDark = false;
+    var htmlTheme = document.documentElement.getAttribute('data-theme') || '';
+    var bodyClass = document.body.className || '';
+    
+    if (htmlTheme === 'dark' || bodyClass.indexOf('dark') !== -1 || bodyClass.indexOf('night') !== -1) {
+        isDark = true;
+    } else if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
+        isDark = true;
+    }
     document.body.classList.toggle('adg-dark', isDark);
-    document.getElementById('theme-icon').textContent = isDark ? '☀️' : '🌙';
   }
+  
   applyTheme();
-  document.getElementById('adg-theme-toggle').addEventListener('click', function() {
-    isDark = !isDark;
-    localStorage.setItem('adg-dark', isDark ? '1' : '0');
-    applyTheme();
-  });
+  if (window.MutationObserver) {
+    var observer = new MutationObserver(applyTheme);
+    observer.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme', 'class'] });
+    observer.observe(document.body, { attributes: true, attributeFilter: ['class'] });
+  }
+  if (window.matchMedia) {
+    window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', applyTheme);
+  }
 
   /* ── Tabs ───────────────────────────────────────────────── */
   document.querySelectorAll('.adg-tab').forEach(function(btn) {
