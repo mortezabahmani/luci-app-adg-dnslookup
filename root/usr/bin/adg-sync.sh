@@ -62,7 +62,7 @@ ADG_CONF=$(uci_get adg_config_path)
 # If path is empty, or the file doesn't exist, try to auto-detect
 if [ -z "$ADG_CONF" ] || [ ! -f "$ADG_CONF" ]; then
     found=""
-    for path in "/etc/adguardhome.yaml" "/etc/AdGuardHome.yaml" "/var/adguardhome/adguardhome.yaml" "/opt/AdGuardHome/AdGuardHome.yaml"; do
+    for path in "/etc/adguardhome/adguardhome.yaml" "/etc/adguardhome.yaml" "/etc/AdGuardHome.yaml" "/var/adguardhome/adguardhome.yaml" "/opt/AdGuardHome/AdGuardHome.yaml"; do
         if [ -f "$path" ]; then
             ADG_CONF="$path"
             found="1"
