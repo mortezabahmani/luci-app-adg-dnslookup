@@ -1,0 +1,44 @@
+#!/bin/sh /etc/rc.common
+# Copyright (C) 2024
+
+START=99
+USE_PROCD=1
+
+PROG=/usr/bin/adg-sync.sh
+
+start_service() {
+    config_load adg_dnslookup
+    config_get_bool enabled main enabled 0
+    config_get schedule main schedule "disabled"
+
+    if [ "$enabled" -eq 1 ]; then
+        if [ "$schedule" != "disabled" ]; then
+            # Update crontab
+            local cron_expr=""
+            case "$schedule" in
+                "3h") cron_expr="0 */3 * * *" ;;
+                "6h") cron_expr="0 */6 * * *" ;;
+                "daily") cron_expr="0 0 * * *" ;;
+                *) cron_expr="$schedule" ;;
+            esac
+
+            # Remove old cron entry
+            sed -i '/adg-sync.sh/d' /etc/crontabs/root 2>/dev/null
+            
+            # Add new cron entry
+            echo "$cron_expr $PROG >/dev/null 2>&1" >> /etc/crontabs/root
+            /etc/init.d/cron restart
+        fi
+    fi
+}
+
+stop_service() {
+    # Remove cron entry
+    sed -i '/adg-sync.sh/d' /etc/crontabs/root 2>/dev/null
+    /etc/init.d/cron restart
+}
+
+reload_service() {
+    stop_service
+    start_service
+}
