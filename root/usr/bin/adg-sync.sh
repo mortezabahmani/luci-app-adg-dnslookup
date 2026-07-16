@@ -127,7 +127,7 @@ resolve_domain() {
     if [ "$DNS_PROTO" = "doh" ]; then
         local server=$(get_random_servers 1)
         ips=$(curl -s -m 3 -H 'accept: application/dns-json' "${server}?name=${domain}&type=A" 2>/dev/null \
-            | grep -o '"data":"[^"]*"' | cut -d'"' -f4 | grep -E '^([0-9]{1,3}\.){3}[0-9]{1,3}$')
+            | grep -o '"data":"[^"]*"' | cut -d'"' -f4 | grep -E '^([0-9]{1,3}\.){3}[0-9]{1,3}$' | grep -vE '^(127\.|0\.0\.0\.0|10\.10\.34\.)')
         
         [ -z "$ips" ] && { log_warn "No IPs for: $domain"; return; }
         for ip in $ips; do
@@ -142,9 +142,9 @@ resolve_domain() {
         for server in $voters; do
             local res=""
             if [ "$DNS_PROTO" = "tcp" ]; then
-                res=$(dig +tcp +short "@${server}" "$domain" +time=3 2>/dev/null | grep -E '^([0-9]{1,3}\.){3}[0-9]{1,3}$')
+                res=$(dig +tcp +short "@${server}" "$domain" +time=3 2>/dev/null | grep -E '^([0-9]{1,3}\.){3}[0-9]{1,3}$' | grep -vE '^(127\.|0\.0\.0\.0|10\.10\.34\.)')
             else
-                res=$(nslookup -timeout=3 "$domain" "$server" 2>/dev/null | awk '/^Address: / { print $2 }' | grep -E '^([0-9]{1,3}\.){3}[0-9]{1,3}$')
+                res=$(nslookup -timeout=3 "$domain" "$server" 2>/dev/null | awk '/^Address: / { print $2 }' | grep -E '^([0-9]{1,3}\.){3}[0-9]{1,3}$' | grep -vE '^(127\.|0\.0\.0\.0|10\.10\.34\.)')
             fi
             all_results="$all_results $res"
         done
