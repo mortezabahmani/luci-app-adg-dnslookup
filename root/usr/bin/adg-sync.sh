@@ -208,8 +208,9 @@ log_info "Pushing $IP_COUNT IPs via local web filter ..."
 # Move the temporary file to the web directory for uhttpd serving
 FILTER_FILE="/www/adg_dnslookup.txt"
 
-# Extract IP/Hostname from ADG_URL to ensure correct routing in all setups
-ROUTER_HOST=$(echo "$ADG_URL" | awk -F/ '{print $3}' | cut -d: -f1)
+# Extract actual OpenWrt LAN IP to ensure correct routing and prevent UI confusion
+ROUTER_HOST=$(uci -q get network.lan.ipaddr)
+[ -z "$ROUTER_HOST" ] && ROUTER_HOST=$(echo "$ADG_URL" | awk -F/ '{print $3}' | cut -d: -f1)
 [ -z "$ROUTER_HOST" ] && ROUTER_HOST="127.0.0.1"
 FILTER_URL="http://${ROUTER_HOST}/adg_dnslookup.txt"
 FILTER_NAME="ADG DNS Lookup"
@@ -217,11 +218,24 @@ FILTER_NAME="ADG DNS Lookup"
 mv "$TMP_FILE" "$FILTER_FILE"
 chmod 644 "$FILTER_FILE"
 
-# Add the filter list in AdGuard Home if not exists
+# Add the filter list in AdGuard Home if not exists, and cleanup old instances
 log_info "Updating AdGuard Home filter lists..."
 filters=$(curl -sf $AUTH_FLAG "${ADG_URL}/control/filtering/status" 2>/dev/null)
+
+# Find if a list named "ADG DNS Lookup" exists but has an old URL
+OLD_URL=$(echo "$filters" | sed -n 's/.*"url":"\([^"]*\)"[^}]*"name":"'"$FILTER_NAME"'".*/\1/p')
+[ -z "$OLD_URL" ] && OLD_URL=$(echo "$filters" | sed -n 's/.*"name":"'"$FILTER_NAME"'"[^}]*"url":"\([^"]*\)".*/\1/p')
+
+if [ -n "$OLD_URL" ] && [ "$OLD_URL" != "$FILTER_URL" ]; then
+    log_info "Removing outdated filter URL: $OLD_URL"
+    curl -sf $AUTH_FLAG -X POST \
+        -H "Content-Type: application/json" \
+        -d "{\"url\":\"$OLD_URL\",\"whitelist\":false}" \
+        "${ADG_URL}/control/filtering/remove_url" >/dev/null 2>&1
+fi
+
 if ! echo "$filters" | grep -q "\"url\":\"$FILTER_URL\""; then
-    log_info "Registering custom filter list..."
+    log_info "Registering custom filter list at $FILTER_URL..."
     curl -sf $AUTH_FLAG -X POST \
         -H "Content-Type: application/json" \
         -d "{\"name\":\"$FILTER_NAME\",\"url\":\"$FILTER_URL\",\"whitelist\":false}" \
