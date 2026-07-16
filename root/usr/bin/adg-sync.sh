@@ -131,7 +131,7 @@ resolve_domain() {
         
         [ -z "$ips" ] && { log_warn "No IPs for: $domain"; return; }
         for ip in $ips; do
-            { flock -x 200; echo "||${domain}^\$dnsrewrite=${ip}" >> "$TMP_FILE"; } 200>/tmp/adg_lock
+            { flock -x 200; echo "||${domain}^\$dnsrewrite=${ip} #adg-sync" >> "$TMP_FILE"; } 200>/tmp/adg_lock
         done
 
     else
@@ -160,7 +160,7 @@ resolve_domain() {
         [ -z "$validated_ips" ] && { log_warn "Failed to resolve or validate IPs for: $domain"; return; }
         
         for ip in $validated_ips; do
-            { flock -x 200; echo "||${domain}^\$dnsrewrite=${ip}" >> "$TMP_FILE"; } 200>/tmp/adg_lock
+            { flock -x 200; echo "||${domain}^\$dnsrewrite=${ip} #adg-sync" >> "$TMP_FILE"; } 200>/tmp/adg_lock
         done
     fi
 }
@@ -205,48 +205,75 @@ fi
 IP_COUNT=$(wc -l < "$TMP_FILE" | tr -d ' ')
 log_info "Pushing $IP_COUNT IPs via local web filter ..."
 
-# Move the temporary file to the web directory for uhttpd serving
-FILTER_FILE="/www/adg_dnslookup.txt"
+IP_COUNT=$(wc -l < "$TMP_FILE" | tr -d ' ')
+log_info "Pushing $IP_COUNT IPs to Custom Filtering Rules..."
 
-# Extract actual OpenWrt LAN IP (strip CIDR subnet mask if present) to ensure correct routing
-ROUTER_HOST=$(uci -q get network.lan.ipaddr | cut -d/ -f1)
-[ -z "$ROUTER_HOST" ] && ROUTER_HOST=$(echo "$ADG_URL" | awk -F/ '{print $3}' | cut -d: -f1)
-[ -z "$ROUTER_HOST" ] && ROUTER_HOST="127.0.0.1"
-FILTER_URL="http://${ROUTER_HOST}/adg_dnslookup.txt"
-FILTER_NAME="ADG DNS Lookup"
-
-mv "$TMP_FILE" "$FILTER_FILE"
-chmod 644 "$FILTER_FILE"
-
-# Add the filter list in AdGuard Home if not exists, and cleanup old instances
-log_info "Updating AdGuard Home filter lists..."
+# Cleanup legacy DNS blocklist (v3.0.0-v3.0.6)
 filters=$(curl -sf $AUTH_FLAG "${ADG_URL}/control/filtering/status" 2>/dev/null)
-
-# Find if a list named "ADG DNS Lookup" exists but has an old URL
-OLD_URL=$(echo "$filters" | sed -n 's/.*"url":"\([^"]*\)"[^}]*"name":"'"$FILTER_NAME"'".*/\1/p')
-[ -z "$OLD_URL" ] && OLD_URL=$(echo "$filters" | sed -n 's/.*"name":"'"$FILTER_NAME"'"[^}]*"url":"\([^"]*\)".*/\1/p')
-
-if [ -n "$OLD_URL" ] && [ "$OLD_URL" != "$FILTER_URL" ]; then
-    log_info "Removing outdated filter URL: $OLD_URL"
+OLD_URL=$(echo "$filters" | sed -n 's/.*"name":"ADG DNS Lookup"[^}]*"url":"\([^"]*\)".*/\1/p')
+if [ -n "$OLD_URL" ]; then
+    log_info "Cleaning up legacy ADG DNS Lookup blocklist..."
     curl -sf $AUTH_FLAG -X POST \
         -H "Content-Type: application/json" \
         -d "{\"url\":\"$OLD_URL\",\"whitelist\":false}" \
         "${ADG_URL}/control/filtering/remove_url" >/dev/null 2>&1
+    rm -f /www/adg_dnslookup.txt
 fi
 
-if ! echo "$filters" | grep -q "\"url\":\"$FILTER_URL\""; then
-    log_info "Registering custom filter list at $FILTER_URL..."
+PAYLOAD_FILE="/tmp/adg_dnslookup_payload.json"
+
+# We use Lua (built-in on LuCI OpenWrt) to safely parse the JSON, append our rules, and generate the POST payload
+lua -e '
+local json = require("luci.jsonc")
+local auth = "'"$ADG_USER"':'"$ADG_PASS"'"
+local cmd = "curl -sf "
+if auth ~= ":" then cmd = cmd .. "-u " .. auth .. " " end
+cmd = cmd .. "'"${ADG_URL}"'/control/filtering/status"
+
+local f = io.popen(cmd, "r")
+local content = f:read("*a")
+f:close()
+
+local data = {}
+if content and content ~= "" then
+    data = json.parse(content) or {}
+end
+
+local new_rules = {}
+for _, rule in ipairs(data.user_rules or {}) do
+    if not rule:match("#adg%-sync$") then
+        table.insert(new_rules, rule)
+    end
+end
+
+local tmp = io.open("'"$TMP_FILE"'", "r")
+if tmp then
+    for line in tmp:lines() do
+        table.insert(new_rules, line)
+    end
+    tmp:close()
+end
+
+local out = io.open("'"$PAYLOAD_FILE"'", "w")
+if out then
+    out:write(json.stringify({rules = new_rules}))
+    out:close()
+end
+'
+
+if [ -s "$PAYLOAD_FILE" ]; then
+    log_info "Updating AdGuard Home Custom rules..."
     curl -sf $AUTH_FLAG -X POST \
         -H "Content-Type: application/json" \
-        -d "{\"name\":\"$FILTER_NAME\",\"url\":\"$FILTER_URL\",\"whitelist\":false}" \
-        "${ADG_URL}/control/filtering/add_url" >/dev/null 2>&1
+        -d @"$PAYLOAD_FILE" \
+        "${ADG_URL}/control/filtering/set_rules" >/dev/null 2>&1
+    
+    # We must call refresh? Wait, set_rules applies immediately! But lets call it just in case? No need.
+else
+    log_error "Failed to generate JSON payload."
 fi
 
-log_info "Refreshing filters..."
-curl -sf $AUTH_FLAG -X POST \
-    -H "Content-Type: application/json" \
-    -d "{\"whitelist\":false}" \
-    "${ADG_URL}/control/filtering/refresh" >/dev/null 2>&1
+rm -f "$PAYLOAD_FILE"
 
 ADDED=$IP_COUNT
 log_ok "Pushed $ADDED IPs to filter list."
