@@ -152,6 +152,11 @@ resolve_domain() {
         # Find IPs that appear at least 2 times
         local validated_ips=$(echo "$all_results" | tr ' ' '\n' | grep -v '^$' | sort | uniq -c | awk '$1 >= 2 {print $2}')
         
+        # If no IP has a majority (e.g. CDN round-robin returning different IPs), accept all unique IPs
+        if [ -z "$validated_ips" ]; then
+            validated_ips=$(echo "$all_results" | tr ' ' '\n' | grep -v '^$' | sort -u)
+        fi
+        
         [ -z "$validated_ips" ] && { log_warn "Failed to resolve or validate IPs for: $domain"; return; }
         
         for ip in $validated_ips; do
@@ -164,7 +169,8 @@ TOTAL_DOMAINS=0
 BATCH_COUNT=0
 BATCH_SIZE=20
 
-LISTS=$(uci -q get adg_dnslookup.main.domain_lists 2>/dev/null)
+# Get all lists by reading domain_list sections (bypasses main.domain_lists sync issues)
+LISTS=$(uci show adg_dnslookup | awk -F '[.=]' '/=domain_list/ {print $2}')
 for list in $LISTS; do
     log_info "Processing list: $list"
     DOMAINS=$(uci -q get "adg_dnslookup.${list}.domain" 2>/dev/null)
