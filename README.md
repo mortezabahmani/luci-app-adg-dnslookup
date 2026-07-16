@@ -51,7 +51,10 @@ This plugin resolves your chosen domains using any DNS server (local or remote),
     adg-sync.sh  (parallel nslookup)
          │
          ▼
-    AdGuardHome REST API  ← /control/rewrite/add
+    /www/adg_dnslookup.txt (Hosts file generation)
+         │
+         ▼
+    AdGuardHome REST API  ← /control/filtering/add_url
 ```
 
 ---
@@ -79,7 +82,7 @@ This plugin resolves your chosen domains using any DNS server (local or remote),
 ```sh
 opkg update
 opkg install curl bind-dig
-curl -L -o /tmp/luci-app-adg-dnslookup.ipk https://github.com/mortezabahmani/luci-app-adg-dnslookup/releases/latest/download/luci-app-adg-dnslookup_3.0.3-1_all.ipk
+curl -L -o /tmp/luci-app-adg-dnslookup.ipk https://github.com/mortezabahmani/luci-app-adg-dnslookup/releases/latest/download/luci-app-adg-dnslookup_3.0.4-1_all.ipk
 opkg install /tmp/luci-app-adg-dnslookup.ipk
 rm /tmp/luci-app-adg-dnslookup.ipk
 service rpcd restart
@@ -90,7 +93,7 @@ service rpcd restart
 ```sh
 apk update
 apk add curl bind-dig
-curl -L -o /tmp/luci-app-adg-dnslookup.apk https://github.com/mortezabahmani/luci-app-adg-dnslookup/releases/latest/download/luci-app-adg-dnslookup_3.0.3-1_all.apk
+curl -L -o /tmp/luci-app-adg-dnslookup.apk https://github.com/mortezabahmani/luci-app-adg-dnslookup/releases/latest/download/luci-app-adg-dnslookup_3.0.4-1_all.apk
 apk add --allow-untrusted /tmp/luci-app-adg-dnslookup.apk
 rm /tmp/luci-app-adg-dnslookup.apk
 service rpcd restart
