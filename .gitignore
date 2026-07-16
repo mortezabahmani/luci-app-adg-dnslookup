@@ -3,3 +3,8 @@
 *.ipk
 *.tmp
 apk-build/
+
+# Agent Configuration and Memory
+.agents/
+docs/memory.md
+.gemini/
