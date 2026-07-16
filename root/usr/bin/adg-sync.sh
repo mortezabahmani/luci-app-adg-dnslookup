@@ -131,7 +131,7 @@ resolve_domain() {
         
         [ -z "$ips" ] && { log_warn "No IPs for: $domain"; return; }
         for ip in $ips; do
-            { flock -x 200; echo "${domain} ${ip}" >> "$TMP_FILE"; } 200>/tmp/adg_lock
+            { flock -x 200; echo "${ip} ${domain}" >> "$TMP_FILE"; } 200>/tmp/adg_lock
         done
 
     else
@@ -160,7 +160,7 @@ resolve_domain() {
         [ -z "$validated_ips" ] && { log_warn "Failed to resolve or validate IPs for: $domain"; return; }
         
         for ip in $validated_ips; do
-            { flock -x 200; echo "${domain} ${ip}" >> "$TMP_FILE"; } 200>/tmp/adg_lock
+            { flock -x 200; echo "${ip} ${domain}" >> "$TMP_FILE"; } 200>/tmp/adg_lock
         done
     fi
 }
@@ -203,44 +203,35 @@ if [ ! -s "$TMP_FILE" ]; then
 fi
 
 IP_COUNT=$(wc -l < "$TMP_FILE" | tr -d ' ')
-log_info "Pushing $IP_COUNT rewrites via API ..."
+log_info "Pushing $IP_COUNT IPs via local web filter ..."
 
-# Get existing rewrites managed by us (we tag with a comment-marker domain)
-# Strategy: fetch all rewrites, delete ours (tagged), then add new ones.
-# Tag: we prefix nothing — we just track what we added in a local state file.
-STATE_FILE="/var/run/adg_dnslookup.state"
+# Move the temporary file to the web directory for uhttpd serving
+FILTER_FILE="/www/adg_dnslookup.txt"
+FILTER_URL="http://127.0.0.1/adg_dnslookup.txt"
+FILTER_NAME="ADG DNS Lookup"
 
-# Delete previously added rewrites
-if [ -f "$STATE_FILE" ]; then
-    log_info "Cleaning previous rewrites ..."
-    while IFS=' ' read -r old_domain old_ip; do
-        curl -sf $AUTH_FLAG -X POST \
-            -H "Content-Type: application/json" \
-            -d "{\"domain\":\"${old_domain}\",\"answer\":\"${old_ip}\"}" \
-            "${ADG_URL}/control/rewrite/delete" >/dev/null 2>&1
-    done < "$STATE_FILE"
-    log_ok "Cleaned old rewrites."
+mv "$TMP_FILE" "$FILTER_FILE"
+chmod 644 "$FILTER_FILE"
+
+# Add the filter list in AdGuard Home if not exists
+log_info "Updating AdGuard Home filter lists..."
+filters=$(curl -sf $AUTH_FLAG "${ADG_URL}/control/filtering/status" 2>/dev/null)
+if ! echo "$filters" | grep -q "\"url\":\"$FILTER_URL\""; then
+    log_info "Registering custom filter list..."
+    curl -sf $AUTH_FLAG -X POST \
+        -H "Content-Type: application/json" \
+        -d "{\"name\":\"$FILTER_NAME\",\"url\":\"$FILTER_URL\",\"whitelist\":false}" \
+        "${ADG_URL}/control/filtering/add_url" >/dev/null 2>&1
 fi
 
-# Add new rewrites
-ADDED=0
-FAILED=0
-while IFS=' ' read -r domain ip; do
-    if curl -sf $AUTH_FLAG -X POST \
-        -H "Content-Type: application/json" \
-        -d "{\"domain\":\"${domain}\",\"answer\":\"${ip}\"}" \
-        "${ADG_URL}/control/rewrite/add" >/dev/null 2>&1; then
-        ADDED=$((ADDED + 1))
-    else
-        FAILED=$((FAILED + 1))
-        log_warn "Failed to add rewrite: $domain -> $ip"
-    fi
-done < "$TMP_FILE"
+log_info "Refreshing filters..."
+curl -sf $AUTH_FLAG -X POST \
+    -H "Content-Type: application/json" \
+    -d "{\"whitelist\":false}" \
+    "${ADG_URL}/control/filtering/refresh" >/dev/null 2>&1
 
-# Save state for next cleanup
-cp "$TMP_FILE" "$STATE_FILE"
-
-log_ok "Pushed $ADDED rewrites ($FAILED failed)."
+ADDED=$IP_COUNT
+log_ok "Pushed $ADDED IPs to filter list."
 
 # ─── Status + Stats ──────────────────────────────────────────────────────────
 TIMESTAMP="$(date +'%Y-%m-%d %H:%M:%S')"
