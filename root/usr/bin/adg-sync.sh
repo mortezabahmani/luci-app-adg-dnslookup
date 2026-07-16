@@ -54,8 +54,8 @@ ADG_URL="${ADG_URL%/}"
 ADG_USER=$(uci_get adg_user)
 ADG_PASS=$(uci_get adg_pass)
 
-DNS_SERVER=$(uci_get custom_dns)
-[ -z "$DNS_SERVER" ] && DNS_SERVER="127.0.0.1"
+DNS_SERVERS=$(uci -q get adg_dnslookup.main.dns_servers)
+[ -z "$DNS_SERVERS" ] && DNS_SERVERS="127.0.0.1"
 
 DNS_PROTO=$(uci_get dns_protocol)
 [ -z "$DNS_PROTO" ] && DNS_PROTO="udp"
@@ -72,37 +72,92 @@ if ! curl -sf $AUTH_FLAG "${ADG_URL}/control/status" >/dev/null 2>&1; then
 fi
 
 log_info "API: $ADG_URL"
-log_info "DNS: $DNS_SERVER ($DNS_PROTO)"
+log_info "DNS Proto: $DNS_PROTO"
+
+# ─── Filter Available DNS Servers ─────────────────────────────────────────────
+AVAILABLE_SERVERS=""
+for server in $DNS_SERVERS; do
+    server=$(echo "$server" | tr -d '\r')
+    case "$DNS_PROTO" in
+        doh)
+            if curl -s -m 2 -H 'accept: application/dns-json' "${server}?name=google.com&type=A" >/dev/null 2>&1; then
+                AVAILABLE_SERVERS="$AVAILABLE_SERVERS $server"
+            fi
+            ;;
+        tcp)
+            if dig +tcp +short "@${server}" google.com +time=2 >/dev/null 2>&1; then
+                AVAILABLE_SERVERS="$AVAILABLE_SERVERS $server"
+            fi
+            ;;
+        *)
+            if nslookup -timeout=2 google.com "$server" >/dev/null 2>&1; then
+                AVAILABLE_SERVERS="$AVAILABLE_SERVERS $server"
+            fi
+            ;;
+    esac
+done
+
+if [ -z "$AVAILABLE_SERVERS" ]; then
+    log_warn "None of the configured DNS servers are accessible. Falling back to default list."
+    AVAILABLE_SERVERS="$DNS_SERVERS" # fallback
+fi
+
+# Convert string to bash array for random picking
+set -f
+IFS=' '
+SERVER_ARRAY=($AVAILABLE_SERVERS)
+set +f
+NUM_SERVERS=${#SERVER_ARRAY[@]}
+log_info "Available DNS Servers: ${NUM_SERVERS}"
 
 # ─── Domain resolution ────────────────────────────────────────────────────────
 > "$TMP_FILE"
 
 resolve_domain() {
     local domain="$1" ips=""
+    
+    # Helper to pick N random distinct servers
+    get_random_servers() {
+        local count=$1
+        [ "$NUM_SERVERS" -le "$count" ] && { echo "${SERVER_ARRAY[@]}"; return; }
+        # Simple shuf-like behavior using awk rand
+        printf "%s\n" "${SERVER_ARRAY[@]}" | awk 'BEGIN{srand()} {print rand() "\t" $0}' | sort -n | cut -f2 | head -n "$count"
+    }
 
-    case "$DNS_PROTO" in
-        doh)
-            command -v curl >/dev/null 2>&1 || { log_error "curl required for DoH. Skipping $domain"; return; }
-            ips=$(curl -s -H 'accept: application/dns-json' "${DNS_SERVER}?name=${domain}&type=A" 2>/dev/null \
-                | grep -o '"data":"[^"]*"' | cut -d'"' -f4 | grep -E '^([0-9]{1,3}\.){3}[0-9]{1,3}$')
-            ;;
-        tcp)
-            command -v dig >/dev/null 2>&1 || { log_error "bind-dig required for TCP. Skipping $domain"; return; }
-            ips=$(dig +tcp +short "@${DNS_SERVER}" "$domain" 2>/dev/null \
-                | grep -E '^([0-9]{1,3}\.){3}[0-9]{1,3}$')
-            ;;
-        *)
-            ips=$(nslookup "$domain" "$DNS_SERVER" 2>/dev/null \
-                | awk '/^Address: / { print $2 }' \
-                | grep -E '^([0-9]{1,3}\.){3}[0-9]{1,3}$')
-            ;;
-    esac
+    if [ "$DNS_PROTO" = "doh" ]; then
+        local server=$(get_random_servers 1)
+        ips=$(curl -s -m 3 -H 'accept: application/dns-json' "${server}?name=${domain}&type=A" 2>/dev/null \
+            | grep -o '"data":"[^"]*"' | cut -d'"' -f4 | grep -E '^([0-9]{1,3}\.){3}[0-9]{1,3}$')
+        
+        [ -z "$ips" ] && { log_warn "No IPs for: $domain"; return; }
+        for ip in $ips; do
+            { flock -x 200; echo "${domain} ${ip}" >> "$TMP_FILE"; } 200>/tmp/adg_lock
+        done
 
-    [ -z "$ips" ] && { log_warn "No IPs for: $domain"; return; }
+    else
+        # UDP or TCP Voting Mechanism
+        local voters=$(get_random_servers 3)
+        local all_results=""
+        
+        for server in $voters; do
+            local res=""
+            if [ "$DNS_PROTO" = "tcp" ]; then
+                res=$(dig +tcp +short "@${server}" "$domain" +time=3 2>/dev/null | grep -E '^([0-9]{1,3}\.){3}[0-9]{1,3}$')
+            else
+                res=$(nslookup -timeout=3 "$domain" "$server" 2>/dev/null | awk '/^Address: / { print $2 }' | grep -E '^([0-9]{1,3}\.){3}[0-9]{1,3}$')
+            fi
+            all_results="$all_results $res"
+        done
 
-    for ip in $ips; do
-        { flock -x 200; echo "${domain} ${ip}" >> "$TMP_FILE"; } 200>/tmp/adg_lock
-    done
+        # Find IPs that appear at least 2 times
+        local validated_ips=$(echo "$all_results" | tr ' ' '\n' | grep -v '^$' | sort | uniq -c | awk '$1 >= 2 {print $2}')
+        
+        [ -z "$validated_ips" ] && { log_warn "Failed to resolve or validate IPs for: $domain"; return; }
+        
+        for ip in $validated_ips; do
+            { flock -x 200; echo "${domain} ${ip}" >> "$TMP_FILE"; } 200>/tmp/adg_lock
+        done
+    fi
 }
 
 TOTAL_DOMAINS=0

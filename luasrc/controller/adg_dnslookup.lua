@@ -13,11 +13,12 @@ function index()
         template("adg_dnslookup/main"), _("ADG DNS Lookup"), 60)
     e.dependent = true
 
-    -- API routes
     entry({"admin", "services", "adg_dnslookup", "api_status"},   call("api_status"),  nil).leaf = true
     entry({"admin", "services", "adg_dnslookup", "api_logs"},     call("api_logs"),    nil).leaf = true
+    entry({"admin", "services", "adg_dnslookup", "api_clear_logs"}, call("api_clear_logs"), nil).leaf = true
     entry({"admin", "services", "adg_dnslookup", "api_sync"},     call("api_sync"),    nil).leaf = true
     entry({"admin", "services", "adg_dnslookup", "api_save"},     call("api_save"),    nil).leaf = true
+    entry({"admin", "services", "adg_dnslookup", "api_test_dns"}, call("api_test_dns"), nil).leaf = true
     entry({"admin", "services", "adg_dnslookup", "api_lists"},    call("api_lists"),   nil).leaf = true
     entry({"admin", "services", "adg_dnslookup", "api_list_op"},  call("api_list_op"), nil).leaf = true
 end
@@ -59,6 +60,9 @@ function api_status()
         if status_raw:match("Success") then badge = "ok" end
     end
 
+    local dns_list = uci:get_list("adg_dnslookup", "main", "dns_servers") or {}
+    local dns_servers_str = table.concat(dns_list, "\n")
+
     json_response({
         badge         = badge,
         status_text   = status_raw:gsub("\n", ""),
@@ -71,7 +75,7 @@ function api_status()
         adg_url       = get_uci_main("adg_url", "http://127.0.0.1:3000"),
         adg_user      = get_uci_main("adg_user", ""),
         adg_pass      = get_uci_main("adg_pass", ""),
-        custom_dns    = get_uci_main("custom_dns", ""),
+        dns_servers   = dns_servers_str,
         dns_protocol  = get_uci_main("dns_protocol", "udp"),
     })
 end
@@ -81,6 +85,15 @@ end
 function api_logs()
     local log = fs.readfile("/var/log/adg_dnslookup.log") or "No log file found."
     json_response({ log = log })
+end
+
+function api_clear_logs()
+    if http.getenv("REQUEST_METHOD") ~= "POST" then
+        http.status(405, "Method Not Allowed")
+        return
+    end
+    sys.call("> /var/log/adg_dnslookup.log")
+    json_response({ ok = true })
 end
 
 -- ─── API: Manual Sync ────────────────────────────────────────────────────────
@@ -109,17 +122,58 @@ function api_save()
         return
     end
 
-    local allowed = { enabled=1, adg_url=1, adg_user=1, adg_pass=1, custom_dns=1, schedule=1, dns_protocol=1 }
+    local allowed = { enabled=1, adg_url=1, adg_user=1, adg_pass=1, schedule=1, dns_protocol=1 }
     for k, v in pairs(data) do
         if allowed[k] then
             uci:set("adg_dnslookup", "main", k, tostring(v))
         end
     end
+    
+    if data.dns_servers then
+        local server_list = {}
+        for s in string.gmatch(data.dns_servers, "[^\r\n]+") do
+            local s_trim = s:match("^%s*(.-)%s*$")
+            if s_trim ~= "" then table.insert(server_list, s_trim) end
+        end
+        uci:set_list("adg_dnslookup", "main", "dns_servers", server_list)
+    end
+    
     uci:commit("adg_dnslookup")
 
     -- Reload cron via init.d
     sys.call("/etc/init.d/adg_dnslookup restart >/dev/null 2>&1")
     json_response({ ok = true })
+end
+
+-- ─── API: Test DNS ────────────────────────────────────────────────────────────
+
+function api_test_dns()
+    if http.getenv("REQUEST_METHOD") ~= "POST" then
+        http.status(405, "Method Not Allowed")
+        return
+    end
+    local body = http.content()
+    local ok, data = pcall(json.parse, body)
+    if not ok or not data or not data.server then
+        http.status(400, "Bad Request")
+        json_response({ ok = false, message = "Invalid JSON" })
+        return
+    end
+
+    local server = data.server
+    local protocol = get_uci_main("dns_protocol", "udp")
+    local test_cmd = ""
+    
+    if protocol == "doh" then
+        test_cmd = string.format("curl -s -m 2 -H 'accept: application/dns-json' '%s?name=google.com&type=A' >/dev/null 2>&1", server:gsub("'", ""))
+    elseif protocol == "tcp" then
+        test_cmd = string.format("dig +tcp +short @'%s' google.com +time=2 >/dev/null 2>&1", server:gsub("'", ""))
+    else
+        test_cmd = string.format("nslookup -timeout=2 google.com '%s' >/dev/null 2>&1", server:gsub("'", ""))
+    end
+
+    local res = sys.call(test_cmd)
+    json_response({ ok = (res == 0) })
 end
 
 -- ─── API: List all domain lists ──────────────────────────────────────────────

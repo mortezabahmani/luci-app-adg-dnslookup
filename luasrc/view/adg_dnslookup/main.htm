@@ -30,15 +30,17 @@
   --adg-transition:  all 0.22s cubic-bezier(.4,0,.2,1);
 }
 
-body.adg-dark {
-  --adg-bg:        #0f172a;
-  --adg-surface:   #1e293b;
-  --adg-surface2:  #273044;
-  --adg-border:    #334155;
-  --adg-text:      #e2e8f0;
-  --adg-text2:     #94a3b8;
-  --adg-shadow:    0 2px 12px rgba(0,0,0,.35);
-  --adg-shadow-lg: 0 8px 32px rgba(0,0,0,.5);
+@media (prefers-color-scheme: dark) {
+  :root {
+    --adg-bg:        transparent;
+    --adg-surface:   rgba(255, 255, 255, 0.05);
+    --adg-surface2:  rgba(255, 255, 255, 0.08);
+    --adg-border:    rgba(255, 255, 255, 0.1);
+    --adg-text:      #e2e8f0;
+    --adg-text2:     #94a3b8;
+    --adg-shadow:    0 2px 12px rgba(0,0,0,.35);
+    --adg-shadow-lg: 0 8px 32px rgba(0,0,0,.5);
+  }
 }
 
 /* — Wrapper ─────────────────────────────────────────────────── */
@@ -518,9 +520,16 @@ body.adg-dark {
       </div>
 
       <div class="adg-form-group">
-        <label class="adg-label" for="setting-dns">DNS Server / URL</label>
-        <input type="text" class="adg-input" id="setting-dns" placeholder="e.g. 1.1.1.1 or https://cloudflare-dns.com/dns-query">
-        <div class="adg-hint">The DNS server IP or DoH URL used to resolve domains.</div>
+        <label class="adg-label">DNS Servers (One per line)</label>
+        <textarea id="setting-dns" class="adg-input" rows="4" placeholder="8.8.8.8&#10;1.1.1.1"></textarea>
+        <div class="adg-hint">Used for resolution. You can define multiple global/anti-sanction servers.</div>
+      </div>
+      <div class="adg-form-group">
+        <button class="adg-btn adg-btn-secondary" onclick="testDnsServers()" id="btn-test-dns">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+          Test Servers
+        </button>
+        <div id="dns-test-results" style="margin-top:10px;font-size:0.8rem;"></div>
       </div>
 
       <div class="adg-form-group">
@@ -610,7 +619,10 @@ body.adg-dark {
           </svg>
           Execution Log
         </div>
-        <button class="adg-btn adg-btn-secondary adg-btn-sm" onclick="fetchLogs()">↻ Refresh</button>
+        <div style="display:flex; gap:8px;">
+          <button class="adg-btn adg-btn-danger adg-btn-sm" onclick="clearLogs()">🗑️ Clear</button>
+          <button class="adg-btn adg-btn-secondary adg-btn-sm" onclick="fetchLogs()">↻ Refresh</button>
+        </div>
       </div>
       <div class="adg-log-box" id="log-box">Loading logs...</div>
     </div>
@@ -761,7 +773,7 @@ body.adg-dark {
       document.getElementById('setting-adg-url').value = d.adg_url || 'http://127.0.0.1:3000';
       document.getElementById('setting-adg-user').value = d.adg_user || '';
       document.getElementById('setting-adg-pass').value = d.adg_pass || '';
-      document.getElementById('setting-dns').value = d.custom_dns || '127.0.0.1';
+      document.getElementById('setting-dns').value = d.dns_servers || '127.0.0.1';
       document.getElementById('setting-dns-proto').value = d.dns_protocol || 'udp';
       window._settingsFull = true;
     });
@@ -773,7 +785,7 @@ body.adg-dark {
       adg_url: document.getElementById('setting-adg-url').value.trim() || 'http://127.0.0.1:3000',
       adg_user: document.getElementById('setting-adg-user').value.trim(),
       adg_pass: document.getElementById('setting-adg-pass').value.trim(),
-      custom_dns: document.getElementById('setting-dns').value.trim() || '127.0.0.1',
+      dns_servers: document.getElementById('setting-dns').value.trim() || '127.0.0.1',
       dns_protocol: document.getElementById('setting-dns-proto').value,
       schedule: document.getElementById('setting-schedule').value,
     };
@@ -913,6 +925,46 @@ body.adg-dark {
       }).join('\n');
       // Auto-scroll to bottom
       box.scrollTop = box.scrollHeight;
+    });
+  };
+
+  window.clearLogs = function() {
+    apiFetch('api_clear_logs', { method: 'POST' }).then(function(d) {
+      if (d.ok) {
+        document.getElementById('log-box').innerHTML = 'Logs cleared.';
+        showToast('Logs cleared!', 'success');
+      }
+    });
+  };
+  
+  window.testDnsServers = function() {
+    var txt = document.getElementById('setting-dns').value.trim();
+    if (!txt) return;
+    var servers = txt.split('\n').map(function(s){return s.trim()}).filter(function(s){return s});
+    var resDiv = document.getElementById('dns-test-results');
+    resDiv.innerHTML = '';
+    
+    servers.forEach(function(server) {
+      var id = 'dns-res-' + server.replace(/[^a-zA-Z0-9]/g, '-');
+      var el = document.createElement('div');
+      el.id = id;
+      el.style.marginBottom = '4px';
+      el.innerHTML = 'Testing <strong>' + escHtml(server) + '</strong> <span class="spinning">⏳</span>';
+      resDiv.appendChild(el);
+      
+      apiFetch('api_test_dns', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ server: server }),
+      }).then(function(d) {
+        if (d.ok) {
+          document.getElementById(id).innerHTML = '<strong>' + escHtml(server) + '</strong> <span style="color:var(--adg-success)">✅ OK</span>';
+        } else {
+          document.getElementById(id).innerHTML = '<strong>' + escHtml(server) + '</strong> <span style="color:var(--adg-error)">❌ Failed</span>';
+        }
+      }).catch(function() {
+        document.getElementById(id).innerHTML = '<strong>' + escHtml(server) + '</strong> <span style="color:var(--adg-error)">❌ Error</span>';
+      });
     });
   };
 
