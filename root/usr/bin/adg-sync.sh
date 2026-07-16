@@ -102,12 +102,9 @@ if [ -z "$AVAILABLE_SERVERS" ]; then
     AVAILABLE_SERVERS="$DNS_SERVERS" # fallback
 fi
 
-# Convert string to bash array for random picking
-set -f
-IFS=' '
-SERVER_ARRAY=($AVAILABLE_SERVERS)
-set +f
-NUM_SERVERS=${#SERVER_ARRAY[@]}
+# Remove leading/trailing spaces for accurate counting
+AVAILABLE_SERVERS=$(echo "$AVAILABLE_SERVERS" | awk '{$1=$1};1')
+NUM_SERVERS=$(echo "$AVAILABLE_SERVERS" | awk '{print NF}')
 log_info "Available DNS Servers: ${NUM_SERVERS}"
 
 # ─── Domain resolution ────────────────────────────────────────────────────────
@@ -119,9 +116,12 @@ resolve_domain() {
     # Helper to pick N random distinct servers
     get_random_servers() {
         local count=$1
-        [ "$NUM_SERVERS" -le "$count" ] && { echo "${SERVER_ARRAY[@]}"; return; }
-        # Simple shuf-like behavior using awk rand
-        printf "%s\n" "${SERVER_ARRAY[@]}" | awk 'BEGIN{srand()} {print rand() "\t" $0}' | sort -n | cut -f2 | head -n "$count"
+        if [ "$NUM_SERVERS" -le "$count" ]; then
+            echo "$AVAILABLE_SERVERS"
+            return
+        fi
+        # shuf-like behavior using awk rand
+        echo "$AVAILABLE_SERVERS" | tr ' ' '\n' | grep -v '^$' | awk 'BEGIN{srand()} {print rand() "\t" $0}' | sort -n | cut -f2 | head -n "$count"
     }
 
     if [ "$DNS_PROTO" = "doh" ]; then

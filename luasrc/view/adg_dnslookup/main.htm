@@ -30,17 +30,15 @@
   --adg-transition:  all 0.22s cubic-bezier(.4,0,.2,1);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --adg-bg:        transparent;
-    --adg-surface:   rgba(255, 255, 255, 0.05);
-    --adg-surface2:  rgba(255, 255, 255, 0.08);
-    --adg-border:    rgba(255, 255, 255, 0.1);
-    --adg-text:      #e2e8f0;
-    --adg-text2:     #94a3b8;
-    --adg-shadow:    0 2px 12px rgba(0,0,0,.35);
-    --adg-shadow-lg: 0 8px 32px rgba(0,0,0,.5);
-  }
+body.adg-dark {
+  --adg-bg:        transparent;
+  --adg-surface:   rgba(255, 255, 255, 0.05);
+  --adg-surface2:  rgba(255, 255, 255, 0.08);
+  --adg-border:    rgba(255, 255, 255, 0.1);
+  --adg-text:      #e2e8f0;
+  --adg-text2:     #94a3b8;
+  --adg-shadow:    0 2px 12px rgba(0,0,0,.35);
+  --adg-shadow-lg: 0 8px 32px rgba(0,0,0,.5);
 }
 
 /* — Wrapper ─────────────────────────────────────────────────── */
@@ -979,6 +977,30 @@
   }
 
   /* ── Init ───────────────────────────────────────────────── */
+  function adaptTheme() {
+    var isDark = false;
+    // Check if OpenWrt explicitly sets a dark theme attribute
+    if (document.documentElement.getAttribute('data-bs-theme') === 'dark' || document.documentElement.getAttribute('data-theme') === 'dark' || document.body.classList.contains('dark')) {
+      isDark = true;
+    } else {
+      // Try to infer from background color
+      var bg = window.getComputedStyle(document.body).backgroundColor;
+      var rgb = bg.match(/\d+/g);
+      if (rgb && rgb.length >= 3) {
+        var luma = 0.2126 * rgb[0] + 0.7152 * rgb[1] + 0.0722 * rgb[2];
+        if (luma < 128 && luma > 0) isDark = true; // >0 to ignore purely transparent
+      } else if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
+        isDark = true; // Fallback
+      }
+    }
+    if (isDark) document.body.classList.add('adg-dark');
+    else document.body.classList.remove('adg-dark');
+  }
+  
+  adaptTheme();
+  // Attempt to re-adapt if theme switches dynamically
+  setInterval(adaptTheme, 5000);
+
   fetchStatus();
   setInterval(fetchStatus, 15000); // Poll status every 15s
 
