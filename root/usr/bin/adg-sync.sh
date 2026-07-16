@@ -106,6 +106,9 @@ resolve_domain() {
 }
 
 TOTAL_DOMAINS=0
+BATCH_COUNT=0
+BATCH_SIZE=20
+
 LISTS=$(uci -q get adg_dnslookup.main.domain_lists 2>/dev/null)
 for list in $LISTS; do
     log_info "Processing list: $list"
@@ -115,7 +118,14 @@ for list in $LISTS; do
         [ -z "$domain" ] && continue
         case "$domain" in \#*) continue;; esac
         TOTAL_DOMAINS=$((TOTAL_DOMAINS + 1))
+        
         resolve_domain "$domain" &
+        
+        BATCH_COUNT=$((BATCH_COUNT + 1))
+        if [ "$BATCH_COUNT" -ge "$BATCH_SIZE" ]; then
+            wait
+            BATCH_COUNT=0
+        fi
     done
 done
 wait
