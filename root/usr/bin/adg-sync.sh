@@ -207,7 +207,11 @@ log_info "Pushing $IP_COUNT IPs via local web filter ..."
 
 # Move the temporary file to the web directory for uhttpd serving
 FILTER_FILE="/www/adg_dnslookup.txt"
-FILTER_URL="http://127.0.0.1/adg_dnslookup.txt"
+
+# Extract IP/Hostname from ADG_URL to ensure correct routing in all setups
+ROUTER_HOST=$(echo "$ADG_URL" | awk -F/ '{print $3}' | cut -d: -f1)
+[ -z "$ROUTER_HOST" ] && ROUTER_HOST="127.0.0.1"
+FILTER_URL="http://${ROUTER_HOST}/adg_dnslookup.txt"
 FILTER_NAME="ADG DNS Lookup"
 
 mv "$TMP_FILE" "$FILTER_FILE"
