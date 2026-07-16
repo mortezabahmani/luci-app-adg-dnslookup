@@ -131,7 +131,7 @@ resolve_domain() {
         
         [ -z "$ips" ] && { log_warn "No IPs for: $domain"; return; }
         for ip in $ips; do
-            { flock -x 200; echo "! adg-sync"; echo "||${domain}^\$dnsrewrite=${ip}"; } 200>/tmp/adg_lock
+            { flock -x 200; echo "! adg-sync"; echo "||${domain}^\$dnsrewrite=${ip}"; } 200>/tmp/adg_lock >> "$TMP_FILE"
         done
 
     else
@@ -160,7 +160,7 @@ resolve_domain() {
         [ -z "$validated_ips" ] && { log_warn "Failed to resolve or validate IPs for: $domain"; return; }
         
         for ip in $validated_ips; do
-            { flock -x 200; echo "! adg-sync"; echo "||${domain}^\$dnsrewrite=${ip}"; } 200>/tmp/adg_lock
+            { flock -x 200; echo "! adg-sync"; echo "||${domain}^\$dnsrewrite=${ip}"; } 200>/tmp/adg_lock >> "$TMP_FILE"
         done
     fi
 }
