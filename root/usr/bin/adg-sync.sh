@@ -208,8 +208,8 @@ log_info "Pushing $IP_COUNT IPs via local web filter ..."
 # Move the temporary file to the web directory for uhttpd serving
 FILTER_FILE="/www/adg_dnslookup.txt"
 
-# Extract actual OpenWrt LAN IP to ensure correct routing and prevent UI confusion
-ROUTER_HOST=$(uci -q get network.lan.ipaddr)
+# Extract actual OpenWrt LAN IP (strip CIDR subnet mask if present) to ensure correct routing
+ROUTER_HOST=$(uci -q get network.lan.ipaddr | cut -d/ -f1)
 [ -z "$ROUTER_HOST" ] && ROUTER_HOST=$(echo "$ADG_URL" | awk -F/ '{print $3}' | cut -d: -f1)
 [ -z "$ROUTER_HOST" ] && ROUTER_HOST="127.0.0.1"
 FILTER_URL="http://${ROUTER_HOST}/adg_dnslookup.txt"
