@@ -169,8 +169,11 @@ TOTAL_DOMAINS=0
 BATCH_COUNT=0
 BATCH_SIZE=20
 
-# Get all lists by reading domain_list sections (bypasses main.domain_lists sync issues)
-LISTS=$(uci show adg_dnslookup | awk -F '[.=]' '/=domain_list/ {print $2}')
+# Read enabled domain lists first, fall back to all domain_list sections if empty
+LISTS=$(uci -q get adg_dnslookup.main.domain_lists)
+if [ -z "$LISTS" ]; then
+    LISTS=$(uci show adg_dnslookup | awk -F '[.=]' '/=domain_list/ {print $2}')
+fi
 for list in $LISTS; do
     log_info "Processing list: $list"
     DOMAINS=$(uci -q get "adg_dnslookup.${list}.domain" 2>/dev/null)
