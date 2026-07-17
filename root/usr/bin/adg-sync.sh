@@ -206,9 +206,6 @@ if [ ! -s "$TMP_FILE" ]; then
 fi
 
 IP_COUNT=$(wc -l < "$TMP_FILE" | tr -d ' ')
-log_info "Pushing $IP_COUNT IPs via local web filter ..."
-
-IP_COUNT=$(wc -l < "$TMP_FILE" | tr -d ' ')
 log_info "Pushing $IP_COUNT IPs to Custom Filtering Rules..."
 
 # Cleanup legacy DNS blocklist (v3.0.0-v3.0.6)
